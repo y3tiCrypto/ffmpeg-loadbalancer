@@ -210,10 +210,32 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                     rewritten_args[i+1] = mappings[codec]
                     log_event(f"Remapped codec: {codec} -> {rewritten_args[i+1]}")
             # Replace preset for hardware acceleration if unsupported
-            elif rewritten_args[i] == "-preset" and mode in ["nvidia", "amd"]:
-                # Hardware encoders sometimes use different presets, but simple mappings work, or we can let FFmpeg handle default
-                # NVENC supports p1-p7, let's keep preset if valid or let it go
-                pass
+            elif rewritten_args[i] in ["-preset", "-preset:v"] and mode in ["nvidia", "amd"]:
+                preset_val = rewritten_args[i+1]
+                nvenc_presets = {
+                    "ultrafast": "p1", "superfast": "p1", "veryfast": "p2",
+                    "faster": "p3", "fast": "p4", "medium": "p4",
+                    "slow": "p5", "slower": "p6", "veryslow": "p7"
+                }
+                amf_presets = {
+                    "ultrafast": "speed", "superfast": "speed", "veryfast": "speed",
+                    "faster": "speed", "fast": "balanced", "medium": "balanced",
+                    "slow": "quality", "slower": "quality", "veryslow": "quality"
+                }
+                if mode == "nvidia":
+                    rewritten_args[i+1] = nvenc_presets.get(preset_val, "p4")
+                    log_event(f"Remapped preset: {preset_val} -> {rewritten_args[i+1]} (Nvidia)")
+                elif mode == "amd":
+                    rewritten_args[i+1] = amf_presets.get(preset_val, "balanced")
+                    log_event(f"Remapped preset: {preset_val} -> {rewritten_args[i+1]} (AMD)")
+            # Replace crf for hardware acceleration if unsupported
+            elif rewritten_args[i] == "-crf" and mode in ["nvidia", "amd"]:
+                if mode == "nvidia":
+                    rewritten_args[i] = "-cq"
+                    log_event("Remapped -crf to -cq for Nvidia NVENC")
+                elif mode == "amd":
+                    rewritten_args[i] = "-qp"
+                    log_event("Remapped -crf to -qp for AMD AMF")
 
     # Extract clean filename from args for display
     file_name = "Stream"
