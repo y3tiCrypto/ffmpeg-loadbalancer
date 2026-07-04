@@ -237,6 +237,21 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                     rewritten_args[i] = "-qp"
                     log_event("Remapped -crf to -qp for AMD AMF")
 
+    # Filter out profile and level for hardware acceleration to prevent driver parameter mismatches
+    if mode in ["nvidia", "amd"]:
+        filtered_args = []
+        idx = 0
+        while idx < len(rewritten_args):
+            arg = rewritten_args[idx]
+            if arg in ["-profile", "-profile:v", "-level", "-level:v"]:
+                # Skip this flag and its value
+                log_event(f"Removed parameter {arg} {rewritten_args[idx+1]} for hardware compatibility")
+                idx += 2
+            else:
+                filtered_args.append(arg)
+                idx += 1
+        rewritten_args = filtered_args
+
     # Extract clean filename from args for display
     file_name = "Stream"
     for i in range(len(rewritten_args)):
