@@ -7,23 +7,26 @@ A high-performance load-balanced transcoding cluster designed for Serviio and Je
                   |    Serviio / Jellyfin Server   |
                   +--------------------------------+
                                   |
-                                  v (Executes ffmpeg.exe)
+                                  v (Executes ffmpeg)
                   +--------------------------------+
                   |  Dummy FFmpeg Wrapper (C++)    |
                   +--------------------------------+
                                   |
                                   v (Local TCP Socket)
                   +--------------------------------+
-                  |   Load Balancer Server (Node)  | <===================+
-                  +--------------------------------+                     |
-                            /            \                               |
-                (Websocket)/              \(Websocket)                   |
-                          v                v                             |
-            +----------------+          +----------------+               |
-            | Client 1 (GPU) |          | Client 2 (CPU) |               |
-            +----------------+          +----------------+               |
-                    |                           |                        |
-                    +------------(HTTP Stream)--+------------------------+
+                  |   Load Balancer Server (Node)  |
+                  +--------------------------------+
+                   /      /       |       \      \
+                 (WS)   (WS)    (WS)    (WS)    (WS)
+                 /      /         |         \      \
+                v      v          v          v      v
+            +-------+ +-------+ +-------+ +-------+ +-------+
+            |Client1| |Client2| |Client3| |Client4| |Client5|
+            |GPU (N)| |GPU (A)| |  CPU  | |GPU (N)| |  CPU  |
+            |Windows| | Linux | |Windows| | Linux | | macOS |
+            +-------+ +-------+ +-------+ +-------+ +-------+
+                |         |         |         |         |
+                +---------+--(HTTP Media Stream)--------+
 ```
 
 ---
