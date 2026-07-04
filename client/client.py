@@ -194,10 +194,10 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
     
     # Fallback checking
     if mode == "nvidia" and not capabilities["nvidia"]:
-        print("Nvidia GPU not detected. Falling back to CPU.")
+        log_event("Nvidia GPU not detected. Falling back to CPU.")
         mode = "cpu"
     elif mode == "amd" and not capabilities["amd"]:
-        print("AMD GPU not detected. Falling back to CPU.")
+        log_event("AMD GPU not detected. Falling back to CPU.")
         mode = "cpu"
 
     if mode in config["codecMappings"]:
@@ -208,7 +208,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                 codec = rewritten_args[i+1]
                 if codec in mappings:
                     rewritten_args[i+1] = mappings[codec]
-                    print(f"Remapped codec: {codec} -> {rewritten_args[i+1]}")
+                    log_event(f"Remapped codec: {codec} -> {rewritten_args[i+1]}")
             # Replace preset for hardware acceleration if unsupported
             elif rewritten_args[i] == "-preset" and mode in ["nvidia", "amd"]:
                 # Hardware encoders sometimes use different presets, but simple mappings work, or we can let FFmpeg handle default
@@ -231,10 +231,11 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
     job["time"] = "00:00:00"
     job["percentage"] = 0
     job["duration_seconds"] = 0.0
+    job["stderr_lines"] = []
 
     # Build command line
     cmd = [config["ffmpegPath"]] + rewritten_args[1:] # Skip dummy executable path
-    print(f"Executing: {' '.join(cmd)}")
+    log_event(f"Executing: {' '.join(cmd)}")
 
     try:
         proc = subprocess.Popen(
@@ -246,7 +247,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
         )
         job["process"] = proc
     except Exception as e:
-        print(f"Failed to start FFmpeg: {e}")
+        log_event(f"Failed to start FFmpeg: {e}")
         # Send fail exit code
         if ws:
             ws.send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": 1}))
@@ -265,7 +266,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
             try:
                 ws.send(header + chunk, opcode=0x02) # Binary frame
             except Exception as e:
-                print(f"Error sending stdout chunk: {e}")
+                log_event(f"Error sending stdout chunk: {e}")
                 break
 
     # Thread 2: Relay/Parse stderr progress logs
@@ -280,6 +281,11 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
             if char == b'\n' or char == b'\r':
                 line = stderr_buffer.decode('utf-8', errors='ignore')
                 stderr_buffer.clear()
+
+                # Store stderr lines for troubleshooting
+                job.setdefault("stderr_lines", []).append(line.strip())
+                if len(job["stderr_lines"]) > 50:
+                    job["stderr_lines"].pop(0)
 
                 # Parse progress stats
                 parse_progress_line(line, job)
@@ -313,7 +319,13 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
 
     # Wait for process exit
     exit_code = proc.wait()
-    print(f"FFmpeg process for job {job_id} exited with code {exit_code}")
+    log_event(f"FFmpeg process for job {job_id} exited with code {exit_code}")
+
+    if exit_code != 0:
+        log_event(f"--- FFmpeg stderr output for job {job_id} (Failed) ---")
+        for line in job.get("stderr_lines", []):
+            log_event(f"[FFmpeg-stderr] {line}")
+        log_event("--- End of FFmpeg stderr ---")
 
     # Notify Server
     try:
@@ -374,6 +386,7 @@ def start_websocket_client():
                 output_mode = data.get("outputMode", "stream")
                 output_path = data.get("outputPath")
 
+                log_event(f"Received start_transcode command for job {job_id}")
                 client_active_jobs[job_id] = {}
                 t = threading.Thread(target=run_ffmpeg, args=(job_id, args, output_mode, output_path), daemon=True)
                 client_active_jobs[job_id]["thread"] = t
@@ -383,7 +396,7 @@ def start_websocket_client():
                 job_id = data["jobId"]
                 job = client_active_jobs.get(job_id)
                 if job and "process" in job:
-                    print(f"Stopping transcode job {job_id} by request of server...")
+                    log_event(f"Stopping transcode job {job_id} by request of server...")
                     job["process"].kill()
 
             elif data["type"] == "stdin":
