@@ -14,6 +14,8 @@ def log_event(msg):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     log_line = f"[{timestamp}] {msg}\n"
     print(msg)
+    if 'config' in globals() and not config.get("enableDebugLog", False):
+        return
     try:
         log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client.log")
         with open(log_path, "a") as f:
@@ -338,9 +340,10 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                 stderr_buffer.clear()
 
                 # Store stderr lines for troubleshooting
-                job.setdefault("stderr_lines", []).append(line.strip())
-                if len(job["stderr_lines"]) > 50:
-                    job["stderr_lines"].pop(0)
+                if config.get("enableDebugLog", False):
+                    job.setdefault("stderr_lines", []).append(line.strip())
+                    if len(job["stderr_lines"]) > 50:
+                        job["stderr_lines"].pop(0)
 
                 # Parse progress stats
                 parse_progress_line(line, job)
@@ -376,7 +379,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
     exit_code = proc.wait()
     log_event(f"FFmpeg process for job {job_id} exited with code {exit_code}")
 
-    if exit_code != 0:
+    if exit_code != 0 and config.get("enableDebugLog", False):
         log_event(f"--- FFmpeg stderr output for job {job_id} (Failed) ---")
         for line in job.get("stderr_lines", []):
             log_event(f"[FFmpeg-stderr] {line}")
