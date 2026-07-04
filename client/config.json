@@ -1,6 +1,6 @@
 {
   "serverUrl": "ws://127.0.0.1:4000/ws",
-  "ffmpegPath": "ffmpeg",
+  "ffmpegPath": "bin/ffmpeg.exe",
   "transcoderMode": "nvidia",
   "enableUi": true,
   "pathMappings": {
