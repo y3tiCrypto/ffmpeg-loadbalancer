@@ -158,8 +158,11 @@
 
     /* Custom Tables */
     .table {
-      color: var(--text-main);
+      color: var(--text-main) !important;
       margin-bottom: 0;
+      --bs-table-bg: transparent !important;
+      --bs-table-hover-bg: rgba(255, 255, 255, 0.05) !important;
+      --bs-table-color: var(--text-main) !important;
     }
 
     .table th {
