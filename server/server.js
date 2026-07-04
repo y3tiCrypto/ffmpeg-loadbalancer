@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
+const { version: VERSION } = require('./package.json');
 
 const isWin = process.platform === 'win32';
 
@@ -124,6 +125,7 @@ app.get('/api/status', (req, res) => {
   }));
 
   res.json({
+    version: VERSION,
     config: CONFIG,
     serverIp: SERVER_IP,
     nodes,
