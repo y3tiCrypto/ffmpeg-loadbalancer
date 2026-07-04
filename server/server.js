@@ -97,7 +97,7 @@ app.get('/api/status', (req, res) => {
   // Add the Local Server node itself
   nodes.push({
     ip: '127.0.0.1',
-    hostname: `Local Server (${os.hostname()})`,
+    hostname: 'Local Server',
     status: isLocalFallbackRunning ? 'transcoding' : 'idle',
     capabilities: { cpu: true, nvidia: false, amd: false },
     lastSeen: Date.now()
