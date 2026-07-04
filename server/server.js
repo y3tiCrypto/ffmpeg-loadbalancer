@@ -508,14 +508,19 @@ function handleJobEnd(jobId, exitCode) {
   const job = activeJobs.get(jobId);
   if (!job) return;
 
-  logEvent(`Job ${jobId} finished with exit code ${exitCode}`);
+  const cleanExitCode = typeof exitCode === 'number' ? exitCode : 0;
+  logEvent(`Job ${jobId} finished with exit code ${cleanExitCode}`);
 
-  // Send exit code packet back to dummy
-  const codeBuf = Buffer.alloc(4);
-  codeBuf.writeInt32BE(exitCode, 0);
-  sendPacketToDummy(job.dummySocket, PKT_EXIT, codeBuf);
+  try {
+    // Send exit code packet back to dummy
+    const codeBuf = Buffer.alloc(4);
+    codeBuf.writeInt32BE(cleanExitCode, 0);
+    sendPacketToDummy(job.dummySocket, PKT_EXIT, codeBuf);
+  } catch (err) {
+    logEvent(`Error sending exit packet to dummy for job ${jobId}: ${err.message}`);
+  }
 
-  cleanupJob(jobId, exitCode);
+  cleanupJob(jobId, cleanExitCode);
 }
 
 // Cleanup and free resources
