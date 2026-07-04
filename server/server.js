@@ -91,6 +91,18 @@ app.get('/api/status', (req, res) => {
     lastSeen: n.lastSeen
   }));
 
+  // Check if any local fallback job is running
+  const isLocalFallbackRunning = Array.from(activeJobs.values()).some(j => !j.wsClient && j.status === 'transcoding');
+
+  // Add the Local Server node itself
+  nodes.push({
+    ip: '127.0.0.1',
+    hostname: `Local Server (${os.hostname()})`,
+    status: isLocalFallbackRunning ? 'transcoding' : 'idle',
+    capabilities: { cpu: true, nvidia: false, amd: false },
+    lastSeen: Date.now()
+  });
+
   // Sort: online nodes first, then by lastSeen desc
   nodes.sort((a, b) => {
     if (a.status === 'offline' && b.status !== 'offline') return 1;
