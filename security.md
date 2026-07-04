@@ -44,4 +44,4 @@ The HTTP file server endpoint (`/api/media?file=...`) allows clients to stream r
 ## 4. Host System Security
 
 - **Run under Low Privilege**: Run the NodeJS server under a service account with the lowest necessary privileges. It only requires read access to your media files, write access to the Serviio transcode temp folder, and network permissions.
-- **Disable Interactive Terminals**: Ensure the client Python script does not run under admin/root privileges, as it executes subprocesses (`ffmpeg`).
+- **Client privilege boundary**: Ensure the client Python script does not run under Administrator or root privileges, as it executes subprocesses (`ffmpeg`). Run it as a standard desktop user.

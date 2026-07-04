@@ -33,6 +33,9 @@ Every packet transmitted over the socket uses the following framing:
 
 The Transcoder Clients connect to the Load Balancer Server at `ws://<server_ip>:<port>/ws` and communicate using a combination of JSON control messages and binary stream frames.
 
+> [!NOTE]
+> **Cross-Version Compatibility**: WebSocket callback handlers on the client are designed with variable argument signatures (`*args` and `**kwargs`) to accommodate differences in argument parameters between `websocket-client` library versions (e.g. `on_close` and `on_open` changes in version `0.x` vs `1.x`).
+
 ### A. JSON Messages (Control & Status Updates)
 
 #### 1. Registration (`type: register`)

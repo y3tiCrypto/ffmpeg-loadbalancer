@@ -35,13 +35,15 @@ A distributed FFmpeg transcoding cluster for Serviio. It intercepts transcoding 
 - **Hardware Acceleration Support**: Clients can be configured to map CPU encoding (`libx264`/`libx265`) to Nvidia GPU (`h264_nvenc`/`hevc_nvenc`) or AMD GPU (`h264_amf`/`hevc_amf`) transcoders.
 - **Sleek Admin Dashboard**: A responsive, real-time, glassmorphic dark-mode web console (built with Bootstrap 5) to monitor connected nodes, active transcode statistics (FPS, speed, elapsed time), and system event logs.
 - **Desktop Status & Tray**: Desktop clients feature a modern, borderless status overlay window in the bottom-right corner and a system tray icon for seamless background running.
+- **Persistent Idle Display**: Right-clicking the tray icon and choosing **Show Status Overlay** reveals the status window which remains visible and displays a clean "Idle" state (showing active hardware mode and hostname) while waiting for tasks.
 - **Headless Client Mode**: Clients run headless automatically on CLI-only environments (e.g. Linux servers, Docker) if graphical libraries are not present.
+- **Cross-Version Callback Compatibility**: WebSocket callbacks are designed with variable argument structures (`*args` and `**kwargs`), making the client fully compatible with various `websocket-client` package versions.
 
 ---
 
 ## Technology Stack
 
-1. **Dummy FFmpeg**: Compiled native C++ command-line application. Fast start-up time (~0ms overhead), zero external runtime dependencies.
+1. **Dummy FFmpeg**: Compiled native C++ command-line application. Fast start-up time (~0ms overhead), zero external runtime dependencies. Compiles easily on Windows via the portable **w64devkit** (GCC/G++).
 2. **Load Balancer Server**: Node.js, Express, and WebSockets (`ws`).
 3. **Transcoder Client**: Python 3, `websocket-client`, `pystray`, `Pillow`, and `tkinter`.
 4. **Admin Dashboard**: HTML5, Vanilla JavaScript, and Bootstrap 5 (CSS).
