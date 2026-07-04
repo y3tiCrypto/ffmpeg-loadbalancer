@@ -1,0 +1,20 @@
+# Node.js dependencies
+server/node_modules/
+
+# Python cache and environments
+__pycache__/
+client/__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Compiled C++ binaries
+*.exe
+*.obj
+*.o
+*.out
+dummy-ffmpeg/ffmpeg
+
+# OS specific files
+.DS_Store
+Thumbs.db
