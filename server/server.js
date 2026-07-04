@@ -434,6 +434,13 @@ function rewriteArgsForClients(args) {
   let outputMode = CONFIG.TRANSCODE_TEMP_MODE;
   let originalOutputPath = null;
 
+  // HLS cannot be piped via stdout. Force shared_folder mode if HLS is detected.
+  const isHls = args.some(arg => arg.toLowerCase().includes('hls'));
+  if (isHls && outputMode === 'stream') {
+    outputMode = 'shared_folder';
+    logEvent(`HLS output detected. Forcing shared_folder mode because HLS cannot be piped to stdout.`);
+  }
+
   // 1. Identify and rewrite input files (-i)
   for (let i = 0; i < rewrittenArgs.length; i++) {
     if (rewrittenArgs[i] === '-i') {
