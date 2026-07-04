@@ -1,6 +1,6 @@
-# Serviio Transcoder Load Balancer
+# Distributed FFmpeg Transcoder Load Balancer for Serviio
 
-A distributed FFmpeg transcoding cluster for Serviio. It intercepts transcoding requests made by your Serviio server and distributes them across one or more client machines on your local network (LAN) to balance CPU and GPU load.
+A high-performance load-balanced transcoding cluster designed for Serviio Media Server. It intercepts transcoding requests made by your Serviio server and distributes them across one or more client machines on your local network (LAN) to balance CPU and GPU load.
 
 ```
                   +--------------------------------+
@@ -30,14 +30,19 @@ A distributed FFmpeg transcoding cluster for Serviio. It intercepts transcoding 
 
 ## Key Features
 
-- **Zero Client configuration for File Sharing**: In "Stream" output mode, media files are streamed from the server to clients over HTTP, and the transcoded output is streamed back via WebSockets. No SAMBA/NFS/Network share setup is required on client nodes!
+- **Zero Client configuration for File Sharing**: In "Stream" output mode, media files are streamed from the server to clients over HTTP, and the transcoded output is streamed back via WebSockets. No network share setup is required on client nodes!
+- **Automatic HLS Redirection**: The server automatically detects HLS streams (Apple HTTP Live Streaming) and handles them via `shared_folder` mode. This writes segment and playlist files directly to disk (using client path mappings), preventing sequential pipe writing issues.
+- **Flexible Path Translation (`pathMappings`)**: Remote client nodes can translate paths dynamically (e.g. mapping the server's local directory `D:\Serviio\Serviio` to a client-mapped network drive `Z:\`), allowing seamless writing of segments directly to the server.
 - **Local Fallback**: If no remote client nodes are connected or active, the server seamlessly runs the transcoding task locally on the host machine. Playback is never interrupted.
-- **Hardware Acceleration Support**: Clients can be configured to map CPU encoding (`libx264`/`libx265`) to Nvidia GPU (`h264_nvenc`/`hevc_nvenc`) or AMD GPU (`h264_amf`/`hevc_amf`) transcoders.
+- **Hardware Acceleration Mapping**: Clients map CPU encoding (`libx264`/`libx265`) to Nvidia GPU (`h264_nvenc`/`hevc_nvenc`) or AMD GPU (`h264_amf`/`hevc_amf`) transcoders.
+- **GPU Parameter Translation**:
+  - Automatically translates CPU presets (like `veryfast`, `slow`) to valid GPU presets (`p1` to `p7` for NVENC, `speed`/`balanced`/`quality` for AMF).
+  - Automatically translates `-crf` parameters to Constant Quality options (`-cq` for NVENC, `-qp` for AMF).
+  - Strips high-conflict parameters (like `-profile:v baseline -level 3`) when mapping to GPU encoders to allow the hardware driver to establish optimal settings.
 - **Sleek Admin Dashboard**: A responsive, real-time, glassmorphic dark-mode web console (built with Bootstrap 5) to monitor connected nodes, active transcode statistics (FPS, speed, elapsed time), and system event logs.
 - **Desktop Status & Tray**: Desktop clients feature a modern, borderless status overlay window in the bottom-right corner and a system tray icon for seamless background running.
 - **Persistent Idle Display**: Right-clicking the tray icon and choosing **Show Status Overlay** reveals the status window which remains visible and displays a clean "Idle" state (showing active hardware mode and hostname) while waiting for tasks.
-- **Headless Client Mode**: Clients run headless automatically on CLI-only environments (e.g. Linux servers, Docker) if graphical libraries are not present.
-- **Cross-Version Callback Compatibility**: WebSocket callbacks are designed with variable argument structures (`*args` and `**kwargs`), making the client fully compatible with various `websocket-client` package versions.
+- **Memory & Logging Optimizations**: Memory buffers are optimized. Server logs are capped to 100 entries, and client nodes default to `enableDebugLog: false` to completely bypass disk I/O write operations and stderr collection during production.
 
 ---
 

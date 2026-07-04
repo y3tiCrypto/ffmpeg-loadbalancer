@@ -1,6 +1,6 @@
-# Protocol Specification
+# Protocol & Translation Specification
 
-This document details the communication protocols used between the components in the load-balanced transcoder cluster.
+This document details the communication protocols and parameter translations used in the load-balanced transcoder cluster.
 
 ---
 
@@ -33,8 +33,8 @@ Every packet transmitted over the socket uses the following framing:
 
 The Transcoder Clients connect to the Load Balancer Server at `ws://<server_ip>:<port>/ws` and communicate using a combination of JSON control messages and binary stream frames.
 
-> [!NOTE]
-> **Cross-Version Compatibility**: WebSocket callback handlers on the client are designed with variable argument signatures (`*args` and `**kwargs`) to accommodate differences in argument parameters between `websocket-client` library versions (e.g. `on_close` and `on_open` changes in version `0.x` vs `1.x`).
+### Cross-Version Callback Compatibility
+WebSocket callback handlers on the client are designed with variable argument signatures (`*args` and `**kwargs`) to accommodate differences in argument parameters between `websocket-client` library versions (e.g. `on_close` and `on_open` changes in version `0.x` vs `1.x`).
 
 ### A. JSON Messages (Control & Status Updates)
 
@@ -64,62 +64,31 @@ Sent by the server to initiate transcoding on the client.
 }
 ```
 
-#### 3. Transcode Progress (`type: progress`)
-Sent by the client periodically during transcoding.
-```json
-{
-  "type": "progress",
-  "jobId": "job_12_4821",
-  "fps": 52.4,
-  "speed": 2.15,
-  "bitrate": "1840kbits/s",
-  "time": "00:03:14.20",
-  "percentage": 14
-}
-```
+---
 
-#### 4. Transcode Stop (`type: stop_transcode`)
-Sent by the server to abort a transcoding task on the client.
-```json
-{
-  "type": "stop_transcode",
-  "jobId": "job_12_4821"
-}
-```
+## 3. Parameter and Path Translations
 
-#### 5. Job Exit (`type: exit`)
-Sent by the client when the FFmpeg process terminates.
-```json
-{
-  "type": "exit",
-  "jobId": "job_12_4821",
-  "exitCode": 0
-}
-```
+Before executing the FFmpeg binary, the load balancer cluster modifies the command line parameters to optimize for remote network and hardware execution.
 
-#### 6. Stdin Forwarding (`type: stdin`)
-Sent by the server to relay raw stdin stream chunks from the dummy process to the client process.
-```json
-{
-  "type": "stdin",
-  "jobId": "job_12_4821",
-  "data": "base64_encoded_payload..."
-}
-```
+### A. Automatic HLS Detection (Server-Side)
+Because HLS (Apple Live Streaming) output consists of multiple segment files and a dynamically updated playlist, it **cannot** be piped sequentially to standard output (`pipe:1`).
+*   The server automatically scans the incoming arguments. If any parameter contains the word `"hls"` (such as `-f hls` or `-hls_segment_filename`), it overrides the configuration and forces the job's `outputMode` to **`"shared_folder"`**.
+*   This prevents the last argument from being rewritten to `pipe:1`, allowing the client to write all segments and playlists directly to disk.
 
-### B. Binary Frames (Relaying Stdout/Stderr Data)
-To achieve fast performance and bypass JSON serialization overhead, output stream chunks (stdout/stderr) are sent from the client as binary WebSocket frames.
+### B. Client-Side Path Translation (`pathMappings`)
+In `"shared_folder"` mode, the client must write files to a drive accessible by both machines. The client maps paths using the `"pathMappings"` configuration:
+*   *Example mapping:* `{"D:\\Serviio\\Serviio": "Z:\\"}`.
+*   The client searches all arguments for `D:\Serviio\Serviio` and translates them to `Z:\` (e.g., `D:\Serviio\Serviio\temp\playlist.m3u8` becomes `Z:\temp\playlist.m3u8`).
+*   The client automatically runs `os.makedirs` to create parent directories on the target network drive if they do not exist before starting the transcode, avoiding folder path write failures.
 
-#### Binary Frame Format
-```text
-+-------------------+----------------------------+-----------------------+-------------------------+
-| Job ID Length     | Job ID String              | Stream Type (1 byte)  | Raw Stream Chunk Data   |
-| (1 byte, UInt8)   | (N bytes, UTF-8 encoded)   | (0x03=out, 0x04=err)  | (M bytes)               |
-+-------------------+----------------------------+-----------------------+-------------------------+
-```
-- **Job ID Length (Byte 0)**: Number of bytes in the job ID string (e.g. `12`).
-- **Job ID String**: UTF-8 bytes corresponding to the jobId.
-- **Stream Type**:
-  - `0x03`: Stdout chunk. Relayed to the local temp file (in `"stream"` mode) or written back to the dummy's stdout.
-  - `0x04`: Stderr chunk. Relayed back to the dummy's stderr and printed in the server dashboard logs.
-- **Raw Stream Chunk Data**: Remaining payload bytes.
+### C. GPU Parameter Compatibility Mapping
+Standard CPU encoding options configured in Serviio cause failures when passed directly to hardware encoders. The client translates them on-the-fly:
+
+1. **Preset Translation**:
+   - **Nvidia NVENC**: Maps CPU presets (`ultrafast` to `veryslow`) to NVENC presets (`p1` to `p7`).
+   - **AMD AMF**: Maps CPU presets to AMF presets (`speed`, `balanced`, `quality`).
+2. **Quality Parameter Mapping (`-crf`)**:
+   - Hardware encoders do not support Constant Rate Factor (`-crf`). The client automatically translates `-crf <val>` to Constant Quality target parameter `-cq <val>` for Nvidia NVENC and `-qp <val>` for AMD AMF.
+3. **Profile and Level Stripping**:
+   - GPU encoders do not support certain legacy CPU profiles (e.g. `baseline` profile is unsupported by NVENC) or syntax for levels.
+   - When mapping to hardware encoders, the client **automatically strips out** `-profile`, `-profile:v`, `-level`, and `-level:v` parameters entirely. This allows the GPU drivers to dynamically negotiate the optimal profile and level.

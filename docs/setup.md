@@ -19,18 +19,6 @@ We recommend using **w64devkit**, a lightweight, zero-configuration portable GCC
    g++ -O3 -o dummy-ffmpeg\ffmpeg.exe dummy-ffmpeg\ffmpeg.cpp -lws2_32
    ```
 
-### Alternative Compilers
-If you already have developer environments installed, you can compile with:
-
-- **MSVC (Visual Studio Developer Command Prompt)**:
-  ```bash
-  cl.exe /EHsc /O2 /Fe:ffmpeg.exe dummy-ffmpeg/ffmpeg.cpp Ws2_32.lib
-  ```
-- **Standard MinGW-w64 (g++)**:
-  ```bash
-  g++ -O3 -o ffmpeg.exe dummy-ffmpeg/ffmpeg.cpp -lws2_32
-  ```
-
 ---
 
 ## 2. Configure Serviio
@@ -84,12 +72,20 @@ pip install websocket-client pillow pystray
 ### Configure the Client
 Edit the `client/config.json` file:
 - `serverUrl`: Point this to the server's IP address, e.g. `ws://192.168.1.141:4000/ws`.
-- `ffmpegPath`: Path to the real `ffmpeg` binary on the client machine.
+- `ffmpegPath`: Path to the real `ffmpeg` binary on the client machine. We bundle a pre-compiled compatible GPU build in the `bin/` folder, which is set as the default `"bin/ffmpeg.exe"`.
 - `transcoderMode`: Set to `"nvidia"` (NVENC), `"amd"` (AMF), or `"cpu"`.
 - `enableUi`: Set to `true` (shows system tray icon and status overlay on desktop) or `false` (headless mode).
+- `enableDebugLog`: Set to `false` (highly recommended to disable file logs and minimize memory usage during normal operation) or `true` (enables `client.log` and active stderr collection for troubleshooting).
+- `pathMappings`: Used to translate server-side folders to client network paths. Required for HLS playback.
+  - *Example:* If Serviio writes temp files to `D:\Serviio\Serviio` on the server and your client mounts this folder as `Z:\`, configure the mapping as:
+    ```json
+    "pathMappings": {
+      "D:\\Serviio\\Serviio": "Z:\\"
+    }
+    ```
 
 ### Run the Client
-```bash
+```cmd
 python client/client.py
 ```
 *(Note: If you run it on your desktop with GUI enabled, a tray icon will appear. You can right-click the icon and choose **Show Status Overlay** to open the status widget in the bottom-right corner. It will show a clean "Idle" state while waiting for tasks, and slide up with active progress bars during transcoding.)*
