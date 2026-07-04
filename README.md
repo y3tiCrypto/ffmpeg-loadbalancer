@@ -8,40 +8,37 @@ A high-performance, cross-platform distributed transcoding scheduler designed fo
 
 The cluster coordinates transcoding tasks across nodes using a multi-layered communication pipeline:
 
-```text
-                  +--------------------------------+
-                  |    Serviio / Jellyfin Server   |
-                  +--------------------------------+
-                                  |
-                                  v (Executes ffmpeg wrapper)
-                  +--------------------------------+
-                  |  Dummy FFmpeg Wrapper (C++)    |
-                  +--------------------------------+
-                                  |
-                                  v (Local Loopback TCP Socket)
-                  +--------------------------------+
-                  |   Load Balancer Server (Node)  |
-                  +--------------------------------+
-                   /      /       |       \      \
-                 (WS)   (WS)    (WS)    (WS)    (WS)
-                 /      /         |         \      \
-                v      v          v          v      v
-            +-------+ +-------+ +-------+ +-------+ +-------+
-            |Client1| |Client2| |Client3| |Client4| |Client5|
-            |GPU (N)| |GPU (A)| |  CPU  | |GPU (N)| |  CPU  |
-            |Windows| | Linux | |Windows| | Linux | | macOS |
-            +-------+ +-------+ +-------+ +-------+ +-------+
-                |         |         |         |         |
-                +---------+--(HTTP Media Stream)--------+
+```mermaid
+flowchart TD
+    classDef server fill:#211530,stroke:#9d4edd,stroke-width:2px,color:#fff;
+    classDef client fill:#0f1530,stroke:#00d2ff,stroke-width:2px,color:#fff;
+
+    MS[("Serviio / Jellyfin Server")]:::server
+    Wrapper["Dummy FFmpeg Wrapper (C++)"]:::server
+    Server["Load Balancer Server (NodeJS)"]:::server
+
+    subgraph Pool [Transcoder Clients Pool]
+        C1["Client 1 (Windows)<br>Nvidia GPU (N)"]:::client
+        C2["Client 2 (Linux)<br>AMD GPU (A)"]:::client
+        C3["Client 3 (Windows)<br>CPU"]:::client
+        C4["Client 4 (Linux)<br>Nvidia GPU (N)"]:::client
+        C5["Client 5 (macOS)<br>CPU"]:::client
+    end
+
+    MS -->|Executes ffmpeg| Wrapper
+    Wrapper -->|Local TCP Socket| Server
+    Server -->|WebSocket Control| Pool
+    Pool -.->|HTTP range requests| Server
+    Pool -.->|WebSocket Transcoded Output| Server
 ```
 
-### Invalidation & Execution Pipeline
-1.  **Interception**: The media server executes our compiled C++ **Dummy FFmpeg Wrapper** instead of the local FFmpeg binary. The wrapper intercepts the full list of command-line arguments and working directories, packaging them into a TCP packet.
-2.  **Scheduling**: The wrapper transmits the packet to the **Node.js Load Balancer Server** via local loopback. The server checks the list of active WebSocket client nodes and schedules the job to the most appropriate node (prioritizing GPU-enabled idle nodes).
-3.  **Low-Latency Media Streaming**:
-    *   *Stream Mode*: The client fetches the raw media file from the server via HTTP range-requests. The client's GPU transcodes the stream and pipes the binary output chunks back to the server in real-time over the WebSocket. The server writes the data directly to the dummy wrapper's stdout TCP packet handler.
-    *   *Shared Folder Mode (For HLS)*: The server detects HLS streams (`-f hls`) and switches to shared folder execution. The client applies path translations (e.g., mapping `D:\Serviio\Serviio` to `Z:\`) and writes segments directly to the shared network storage.
-4.  **Local Fallback**: If no remote nodes are connected or an error occurs during scheduling, the server automatically spawns the local fallback FFmpeg process on the host machine to prevent playback interruptions.
+### Transcoding Execution Flow
+1.  **Request Interception**: When playback starts, the media server executes our compiled C++ **Dummy FFmpeg Wrapper** instead of the actual local FFmpeg binary. The wrapper captures the full command-line arguments and working directory, and transmits them to the server via a local TCP loopback socket.
+2.  **Job Scheduling**: The **Node.js Load Balancer Server** receives the transcode command. It searches its active node registry, selects the most suitable client node (prioritizing GPU-enabled nodes that are currently idle), and transmits the transcode task via WebSockets.
+3.  **Low-Latency Stream Handling**:
+    *   **Stream Mode**: The client reads the source media file from the server via HTTP range-requests, transcodes the frames, and streams the binary output chunks back to the server over the WebSocket. The server writes this stream directly to the dummy wrapper, which outputs it to the player in real-time.
+    *   **Shared-Folder Mode (HLS)**: If HLS options (`-f hls`) are detected, the server automatically bypasses WebSocket pipes. The client applies path translations (e.g., mapping `D:\Serviio\Serviio` to `Z:\`) and writes HLS playlist/segment files directly to the shared network storage, letting the media server serve them natively.
+4.  **Local Fallback**: If no nodes are connected or an error occurs during scheduling, the server automatically spawns the local fallback FFmpeg instance locally, preventing server stutters.
 
 ---
 
