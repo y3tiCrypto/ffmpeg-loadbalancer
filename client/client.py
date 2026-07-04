@@ -138,6 +138,20 @@ class StatusOverlay:
         self.stats_label = tk.Label(self.window, text="FPS: - | Speed: - | Progress: -", fg="#a39cb4", bg="#150f30", font=("Outfit", 8))
         self.stats_label.pack(anchor="w", padx=15, pady=5)
 
+        # Bind double-click to hide the overlay easily
+        self.window.bind("<Double-1>", lambda e: self.hide())
+        self.title_label.bind("<Double-1>", lambda e: self.hide())
+        self.job_label.bind("<Double-1>", lambda e: self.hide())
+        self.stats_label.bind("<Double-1>", lambda e: self.hide())
+        self.canvas.bind("<Double-1>", lambda e: self.hide())
+
+        # Show hand cursor on hover to signify clickability
+        self.window.config(cursor="hand2")
+        self.title_label.config(cursor="hand2")
+        self.job_label.config(cursor="hand2")
+        self.stats_label.config(cursor="hand2")
+        self.canvas.config(cursor="hand2")
+
     def show(self, manual=False):
         if manual:
             self.manually_opened = True
@@ -556,6 +570,9 @@ if __name__ == "__main__":
         def show_overlay_action(icon, item):
             root.after(0, lambda: status_window.show(manual=True))
 
+        def hide_overlay_action(icon, item):
+            root.after(0, status_window.hide)
+
         def exit_action(icon, item):
             icon.stop()
             root.quit()
@@ -563,6 +580,7 @@ if __name__ == "__main__":
 
         tray_menu = pystray.Menu(
             pystray.MenuItem("Show Status Overlay", show_overlay_action),
+            pystray.MenuItem("Hide Status Overlay", hide_overlay_action),
             pystray.MenuItem("Exit Client", exit_action)
         )
         
