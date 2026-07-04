@@ -8,26 +8,22 @@ A high-performance, cross-platform distributed transcoding scheduler designed fo
 
 The cluster coordinates transcoding tasks across nodes using a multi-layered communication pipeline:
 
-```mermaid
-flowchart LR
-    classDef server fill:#211530,stroke:#9d4edd,stroke-width:2px,color:#fff;
-    classDef client fill:#0f1530,stroke:#00d2ff,stroke-width:2px,color:#fff;
-
-    MS[("Serviio / Jellyfin Server")]:::server
-    Wrapper["Dummy FFmpeg Wrapper (C++)"]:::server
-    Server["Load Balancer Server (NodeJS)"]:::server
-
-    subgraph Pool [Transcoder Clients Pool]
-        C1["Client 1 (Windows)<br>Nvidia GPU (N)"]:::client
-        C2["Client 2 (Linux)<br>AMD GPU (A)"]:::client
-        C3["Client 3 (Windows)<br>CPU"]:::client
-        C4["Client 4 (Linux)<br>Nvidia GPU (N)"]:::client
-        C5["Client 5 (macOS)<br>CPU"]:::client
-    end
-
-    MS -->|Executes ffmpeg| Wrapper
-    Wrapper -->|Local TCP Socket| Server
-    Server ===|WebSocket Control & Data Streams| Pool
+```text
++-------------------------+      +-------------------------+      +-------------------------+
+|      Media Server       | ---> |  Dummy FFmpeg Wrapper   | ---> |  Load Balancer Server   |
+|  (Serviio / Jellyfin)   |      |         (C++)           |      |        (NodeJS)         |
++-------------------------+      +-------------------------+      +-------------------------+
+                                                                               |
+         +--------------------+--------------------+--------------------+------+--------------------+
+         |                    |                    |                    |                           | (WebSockets)
+         v                    v                    v                    v                           v
+  +-------------+      +-------------+      +-------------+      +-------------+             +-------------+
+  |  Client 1   |      |  Client 2   |      |  Client 3   |      |  Client 4   |             |  Client 5   |
+  |  GPU (N)    |      |  GPU (A)    |      |    CPU      |      |  GPU (N)    |             |    CPU      |
+  |  Windows    |      |   Linux     |      |  Windows    |      |   Linux     |             |   macOS     |
+  +-------------+      +-------------+      +-------------+      +-------------+             +-------------+
+         \                    \                    \                    /                           /
+          +--------------------+--------------------+------------------+---(HTTP Media Stream)--------+
 ```
 
 ### Transcoding Execution Flow
