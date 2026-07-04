@@ -44,6 +44,7 @@ Sent by the client immediately upon connection to report capabilities.
 {
   "type": "register",
   "hostname": "ClientNode1",
+  "os": "Windows", // 'Windows', 'Linux', or 'macOS'
   "capabilities": {
     "cpu": true,
     "nvidia": true,
@@ -70,6 +71,7 @@ Used by the admin dashboard to retrieve the current status of all nodes (online 
 **Example Response**:
 ```json
 {
+  "version": "1.0.0",
   "config": {
     "HTTP_PORT": 4000,
     "TCP_PORT": 4001,
@@ -83,6 +85,7 @@ Used by the admin dashboard to retrieve the current status of all nodes (online 
     {
       "ip": "192.168.1.37",
       "hostname": "Y3TI",
+      "os": "Windows",
       "status": "idle",
       "capabilities": {
         "cpu": true,

@@ -39,10 +39,12 @@ A high-performance load-balanced transcoding cluster designed for Serviio Media 
   - Automatically translates CPU presets (like `veryfast`, `slow`) to valid GPU presets (`p1` to `p7` for NVENC, `speed`/`balanced`/`quality` for AMF).
   - Automatically translates `-crf` parameters to Constant Quality options (`-cq` for NVENC, `-qp` for AMF).
   - Strips high-conflict parameters (like `-profile:v baseline -level 3`) when mapping to GPU encoders to allow the hardware driver to establish optimal settings.
-- **Sleek Admin Dashboard**: A responsive, real-time, glassmorphic dark-mode web console (built with Bootstrap 5) to monitor connected nodes, active transcode statistics (FPS, speed, elapsed time), and system event logs.
+- **Sleek Admin Dashboard**: A responsive, real-time, glassmorphic dark-mode web console (built with Bootstrap 5) to monitor connected nodes, active transcode statistics (FPS, speed, elapsed time), and system event logs. Includes dynamic version badges, wider metadata layouts, and smooth translucent hover transitions.
+- **Operating System Node Tracking**: Connected client nodes automatically detect and report their operating systems (`Windows`, `Linux`, or `macOS`), which are then displayed alongside dynamic platform logos on the Admin Dashboard.
 - **Desktop Status & Tray**: Desktop clients feature a modern, borderless status overlay window in the bottom-right corner and a system tray icon for seamless background running.
 - **Persistent Idle Display**: Right-clicking the tray icon and choosing **Show Status Overlay** reveals the status window which remains visible and displays a clean "Idle" state (showing active hardware mode and hostname) while waiting for tasks.
 - **Memory & Logging Optimizations**: Memory buffers are optimized. Server logs are capped to 100 entries, and client nodes default to `enableDebugLog: false` to completely bypass disk I/O write operations and stderr collection during production.
+- **Centralized Versioning**: Exposes the formal application version (synchronized from `package.json`) in the HTTP status API and displays version metadata badges in the dashboard header and footer.
 
 ---
 
