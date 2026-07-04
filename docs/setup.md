@@ -74,7 +74,7 @@ Jellyfin makes changing transcode binaries extremely simple.
 
 ## 3. Install & Start the Load Balancer Server
 
-The Load Balancer Server runs on your primary media server host. It requires **Node.js** (v18+).
+The Load Balancer Server runs on your primary media server host. It requires **Node.js** (v24+).
 
 1. Navigate to the `server/` directory:
    ```bash

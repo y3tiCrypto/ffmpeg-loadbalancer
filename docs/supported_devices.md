@@ -8,7 +8,7 @@ This document lists the operating systems, hardware platforms, media servers, an
 
 ### A. Windows (Host & Client Nodes)
 *   **Versions**: Windows 10, Windows 11, Windows Server 2016 / 2019 / 2022
-*   **Runtimes**: Python 3.8+ (x86_64), Node.js v18+ (for Server Host)
+*   **Runtimes**: Python 3.8+ (x86_64), Node.js v24+ (for Server Host)
 *   **GUI Mode**: Supported (displays system tray icon and status overlay widget in the bottom-right corner)
 *   **Headless Mode**: Supported
 
@@ -65,7 +65,7 @@ This document lists the operating systems, hardware platforms, media servers, an
 ## 4. Software Runtimes & Dependencies
 
 ### Server Host Machine
-*   **Node.js**: v18.0.0 or higher
+*   **Node.js**: v24.0.0 or higher
 *   **Express**: v4.19.0+
 *   **ws** (WebSocket library): v8.17.0+
 
