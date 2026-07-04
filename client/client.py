@@ -233,6 +233,24 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
     job["duration_seconds"] = 0.0
     job["stderr_lines"] = []
 
+    # Apply path mappings (e.g. mapping remote Serviio temp folder to a local or mapped network drive folder)
+    path_mappings = config.get("pathMappings", {})
+    for i in range(len(rewritten_args)):
+        arg = rewritten_args[i]
+        for remote_path, local_path in path_mappings.items():
+            if remote_path in arg:
+                rewritten_args[i] = arg.replace(remote_path, local_path)
+
+    # Ensure parent directories exist for any absolute output files
+    for arg in rewritten_args:
+        if (os.path.isabs(arg) or (len(arg) > 2 and arg[1] == ':')) and '.' in os.path.basename(arg):
+            try:
+                parent_dir = os.path.dirname(arg)
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+            except Exception as ex:
+                log_event(f"Warning: could not create parent directory for {arg}: {ex}")
+
     # Build command line
     cmd = [config["ffmpegPath"]] + rewritten_args[1:] # Skip dummy executable path
     log_event(f"Executing: {' '.join(cmd)}")
