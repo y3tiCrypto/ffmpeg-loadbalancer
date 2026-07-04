@@ -353,7 +353,7 @@ def start_websocket_client():
     
     server_url = config["serverUrl"]
 
-    def on_message(ws_conn, message):
+    def on_message(ws_conn, message, *args, **kwargs):
         try:
             data = json.loads(message)
             if data["type"] == "start_transcode":
@@ -388,7 +388,7 @@ def start_websocket_client():
         except Exception as e:
             print(f"Error handling WebSocket message: {e}")
 
-    def on_open(ws_conn):
+    def on_open(ws_conn, *args, **kwargs):
         print("Connected to Load Balancer WebSocket Server!")
         # Register capabilities
         ws_conn.send(json.dumps({
@@ -397,7 +397,7 @@ def start_websocket_client():
             "capabilities": capabilities
         }))
 
-    def on_close(ws_conn, close_status, close_msg):
+    def on_close(ws_conn, *args, **kwargs):
         print("WebSocket connection closed.")
         # Kill all running jobs if disconnected
         for job_id, job in list(client_active_jobs.items()):
@@ -405,7 +405,7 @@ def start_websocket_client():
                 job["process"].kill()
         client_active_jobs.clear()
 
-    def on_error(ws_conn, error):
+    def on_error(ws_conn, error, *args, **kwargs):
         print(f"WebSocket Error: {error}")
 
     # Reconnection loop
