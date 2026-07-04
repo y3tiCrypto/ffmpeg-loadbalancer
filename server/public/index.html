@@ -276,6 +276,7 @@
               <thead>
                 <tr>
                   <th>Client Hostname</th>
+                  <th>OS</th>
                   <th>IP Address</th>
                   <th>Hardware</th>
                   <th>Status</th>
@@ -283,7 +284,7 @@
               </thead>
               <tbody id="nodes-table-body">
                 <tr>
-                  <td colspan="4" class="text-center py-4 text-muted">No clients connected.</td>
+                  <td colspan="5" class="text-center py-4 text-muted">No clients connected.</td>
                 </tr>
               </tbody>
             </table>
@@ -351,7 +352,7 @@
         // 2. Render Nodes Table
         const nodesTbody = document.getElementById('nodes-table-body');
         if (data.nodes.length === 0) {
-          nodesTbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-muted">No clients connected. Awaiting clients...</td></tr>`;
+          nodesTbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">No clients connected. Awaiting clients...</td></tr>`;
         } else {
           nodesTbody.innerHTML = data.nodes.map(node => {
             const hws = [];
@@ -371,9 +372,15 @@
 
             const rowClass = node.status === 'offline' ? 'opacity-50 text-muted' : '';
 
+            let osIcon = '<i class="bi bi-cpu-fill text-muted me-1"></i>';
+            if (node.os === 'Windows') osIcon = '<i class="bi bi-windows text-primary me-1"></i>';
+            else if (node.os === 'Linux') osIcon = '<i class="bi bi-ubuntu text-warning me-1"></i>';
+            else if (node.os === 'macOS') osIcon = '<i class="bi bi-apple text-light me-1"></i>';
+
             return `
               <tr class="${rowClass}">
                 <td class="fw-semibold">${node.hostname}</td>
+                <td><span class="d-flex align-items-center">${osIcon}${node.os || 'Unknown'}</span></td>
                 <td><code class="text-info">${node.ip}</code></td>
                 <td>${hws.join('')}</td>
                 <td><span class="badge ${statusClass}">${statusLabel}</span></td>

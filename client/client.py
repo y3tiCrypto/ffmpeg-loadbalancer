@@ -492,6 +492,7 @@ def start_websocket_client():
             payload = json.dumps({
                 "type": "register",
                 "hostname": hostname,
+                "os": "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux"),
                 "capabilities": capabilities
             })
             log_event(f"Sending payload: {payload}")

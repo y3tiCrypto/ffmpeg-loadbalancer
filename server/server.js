@@ -7,16 +7,18 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 
+const isWin = process.platform === 'win32';
+
 // Configuration
 const CONFIG = {
   HTTP_PORT: process.env.HTTP_PORT || 4000,
   TCP_PORT: process.env.TCP_PORT || 4001,
   // Path to the real FFmpeg executable on the server for local fallback
-  FALLBACK_FFMPEG_PATH: process.env.FALLBACK_FFMPEG_PATH || "C:\\Program Files\\Serviio\\lib\\ffmpeg.exe",
+  FALLBACK_FFMPEG_PATH: process.env.FALLBACK_FFMPEG_PATH || (isWin ? "C:\\Program Files\\Serviio\\lib\\ffmpeg.exe" : "/usr/lib/serviio/bin/ffmpeg"),
   // Mode: "stream" (server writes client stream to disk) or "shared_folder" (client writes directly)
   TRANSCODE_TEMP_MODE: process.env.TRANSCODE_TEMP_MODE || "stream",
-  LOCAL_TEMP_DIR: process.env.LOCAL_TEMP_DIR || "C:\\Windows\\Temp\\serviio\\transcoding-temp",
-  SHARED_TEMP_DIR: process.env.SHARED_TEMP_DIR || "\\\\127.0.0.1\\serviio-temp"
+  LOCAL_TEMP_DIR: process.env.LOCAL_TEMP_DIR || (isWin ? "C:\\Windows\\Temp\\serviio\\transcoding-temp" : "/tmp/serviio/transcoding-temp"),
+  SHARED_TEMP_DIR: process.env.SHARED_TEMP_DIR || (isWin ? "\\\\127.0.0.1\\serviio-temp" : "/mnt/serviio-temp")
 };
 
 // Global State
@@ -86,6 +88,7 @@ app.get('/api/status', (req, res) => {
   const nodes = Array.from(knownNodes.values()).map(n => ({
     ip: n.ip,
     hostname: n.hostname,
+    os: n.os,
     status: n.status,
     capabilities: n.capabilities,
     lastSeen: n.lastSeen
@@ -98,6 +101,7 @@ app.get('/api/status', (req, res) => {
   nodes.push({
     ip: '127.0.0.1',
     hostname: 'Local Server',
+    os: isWin ? 'Windows' : 'Linux',
     status: isLocalFallbackRunning ? 'transcoding' : 'idle',
     capabilities: { cpu: true, nvidia: false, amd: false },
     lastSeen: Date.now()
@@ -204,6 +208,7 @@ wss.on('connection', (ws, req) => {
     ip,
     status: 'idle',
     hostname: 'Unknown',
+    os: 'Unknown',
     capabilities: { cpu: true, nvidia: false, amd: false },
     startTime: Date.now()
   };
@@ -225,13 +230,15 @@ wss.on('connection', (ws, req) => {
         case 'register':
           clientInfo.hostname = data.hostname || clientInfo.hostname;
           clientInfo.capabilities = data.capabilities || clientInfo.capabilities;
-          logEvent(`Registered node: ${clientInfo.hostname} (${ip}) - Caps: ${JSON.stringify(clientInfo.capabilities)}`);
+          clientInfo.os = data.os || 'Unknown';
+          logEvent(`Registered node: ${clientInfo.hostname} (${ip}) - OS: ${clientInfo.os} - Caps: ${JSON.stringify(clientInfo.capabilities)}`);
           
           // Update knownNodes registry
           const regKey = clientInfo.hostname === 'Unknown' ? ip : clientInfo.hostname;
           knownNodes.set(regKey, {
             hostname: clientInfo.hostname,
             ip: ip,
+            os: clientInfo.os,
             capabilities: clientInfo.capabilities,
             status: 'idle',
             lastSeen: Date.now()
