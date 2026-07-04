@@ -1,10 +1,10 @@
-# Distributed FFmpeg Transcoder Load Balancer for Serviio
+# Distributed FFmpeg Transcoder Load Balancer for Serviio & Jellyfin
 
-A high-performance load-balanced transcoding cluster designed for Serviio Media Server. It intercepts transcoding requests made by your Serviio server and distributes them across one or more client machines on your local network (LAN) to balance CPU and GPU load.
+A high-performance load-balanced transcoding cluster designed for Serviio and Jellyfin Media Servers. It intercepts transcoding requests made by your media server and distributes them across one or more client machines on your local network (LAN) to balance CPU and GPU load.
 
 ```
                   +--------------------------------+
-                  |     Serviio Media Server       |
+                  |    Serviio / Jellyfin Server   |
                   +--------------------------------+
                                   |
                                   v (Executes ffmpeg.exe)

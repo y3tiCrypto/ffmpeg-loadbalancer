@@ -1,6 +1,6 @@
 # Security Policy & Considerations
 
-This document outlines the security model of the Serviio Transcoder Load Balancer and best practices for securing your deployment.
+This document outlines the security model of the Serviio & Jellyfin Transcoder Load Balancer and best practices for securing your deployment.
 
 ---
 
@@ -33,7 +33,7 @@ The Load Balancer cluster is designed for deployment within a **trusted, private
 The HTTP file server endpoint (`/api/media?file=...`) allows clients to stream raw video files from the server.
 
 ### Current Implementation:
-- The server reads the file path provided directly by the query parameter. This is necessary because media libraries in Serviio can span multiple drives and directory structures.
+- The server reads the file path provided directly by the query parameter. This is necessary because media libraries in Serviio and Jellyfin can span multiple drives and directory structures.
 
 ### Recommended Defenses:
 1. **Host Firewall Filtering**: Restrict incoming traffic on port `4000` to designated client IP addresses only.
@@ -43,5 +43,5 @@ The HTTP file server endpoint (`/api/media?file=...`) allows clients to stream r
 
 ## 4. Host System Security
 
-- **Run under Low Privilege**: Run the NodeJS server under a service account with the lowest necessary privileges. It only requires read access to your media files, write access to the Serviio transcode temp folder, and network permissions.
+- **Run under Low Privilege**: Run the NodeJS server under a service account with the lowest necessary privileges. It only requires read access to your media files, write access to the media server's transcode temp folder, and network permissions.
 - **Client privilege boundary**: Ensure the client Python script does not run under Administrator or root privileges, as it executes subprocesses (`ffmpeg`). Run it as a standard desktop user.

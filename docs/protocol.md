@@ -134,7 +134,7 @@ In `"shared_folder"` mode, the client must write files to a drive accessible by 
 *   The client automatically runs `os.makedirs` to create parent directories on the target network drive if they do not exist before starting the transcode, avoiding folder path write failures.
 
 ### C. GPU Parameter Compatibility Mapping
-Standard CPU encoding options configured in Serviio cause failures when passed directly to hardware encoders. The client translates them on-the-fly:
+Standard CPU encoding options configured in Serviio/Jellyfin cause failures when passed directly to hardware encoders. The client translates them on-the-fly:
 
 1. **Preset Translation**:
    - **Nvidia NVENC**: Maps CPU presets (`ultrafast` to `veryslow`) to NVENC presets (`p1` to `p7`).
