@@ -64,6 +64,55 @@ Sent by the server to initiate transcoding on the client.
 }
 ```
 
+### B. HTTP Status API (`GET /api/status`)
+Used by the admin dashboard to retrieve the current status of all nodes (online and offline), active transcode jobs, and server logs.
+
+**Example Response**:
+```json
+{
+  "config": {
+    "HTTP_PORT": 4000,
+    "TCP_PORT": 4001,
+    "FALLBACK_FFMPEG_PATH": "C:\\Program Files\\Serviio\\lib\\ffmpeg.exe",
+    "TRANSCODE_TEMP_MODE": "stream",
+    "LOCAL_TEMP_DIR": "C:\\Windows\\Temp\\serviio\\transcoding-temp",
+    "SHARED_TEMP_DIR": "\\\\127.0.0.1\\serviio-temp"
+  },
+  "serverIp": "192.168.1.141",
+  "nodes": [
+    {
+      "ip": "192.168.1.37",
+      "hostname": "Y3TI",
+      "status": "idle",
+      "capabilities": {
+        "cpu": true,
+        "nvidia": true,
+        "amd": false
+      },
+      "lastSeen": 1720120194821
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_2_0160",
+      "status": "transcoding",
+      "node": "Y3TI",
+      "args": "-threads 0 -i http://...",
+      "startTime": 1720120194000,
+      "stats": {
+        "fps": 54,
+        "speed": "2.3x",
+        "time": "00:01:23.00",
+        "percentage": 5
+      }
+    }
+  ],
+  "logs": [
+    "[2026-07-04T18:55:08.123Z] Registered node: Y3TI (192.168.1.37)"
+  ]
+}
+```
+
 ---
 
 ## 3. Parameter and Path Translations

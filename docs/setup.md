@@ -88,4 +88,4 @@ Edit the `client/config.json` file:
 ```cmd
 python client/client.py
 ```
-*(Note: If you run it on your desktop with GUI enabled, a tray icon will appear. You can right-click the icon and choose **Show Status Overlay** to open the status widget in the bottom-right corner. It will show a clean "Idle" state while waiting for tasks, and slide up with active progress bars during transcoding.)*
+*(Note: If you run it on your desktop with GUI enabled, a tray icon will appear. You can right-click the icon and choose **Show Status Overlay** to open the status widget in the bottom-right corner. It will show a clean "Idle" state while waiting for tasks, and slide up with active progress bars during transcoding. To dismiss the overlay, simply double-click anywhere on the overlay window or right-click the tray icon and select **Hide Status Overlay**.)*
