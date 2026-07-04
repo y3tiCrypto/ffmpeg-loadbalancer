@@ -192,10 +192,10 @@ wss.on('connection', (ws, req) => {
   clients.set(ws, clientInfo);
   logEvent(`New client connection from ${ip}`);
 
-  ws.on('message', (message) => {
+  ws.on('message', (message, isBinary) => {
     try {
       // Handle Binary Stream (FFmpeg output relay)
-      if (Buffer.isBuffer(message)) {
+      if (isBinary) {
         handleClientStream(message);
         return;
       }
