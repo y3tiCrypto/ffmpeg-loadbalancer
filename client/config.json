@@ -4,7 +4,7 @@
   "transcoderMode": "nvidia",
   "enableUi": true,
   "pathMappings": {
-    "D:\\Serviio\\Serviio": "W:\\"
+    "D:\\Serviio\\Serviio": "Z:\\"
   },
   "codecMappings": {
     "nvidia": {
