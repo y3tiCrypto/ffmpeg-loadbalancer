@@ -107,6 +107,7 @@ class StatusOverlay:
         self.width = 320
         self.height = 140
         self.visible = False
+        self.manually_opened = False
         self.hide()
 
         # Build Widgets
@@ -123,7 +124,9 @@ class StatusOverlay:
         self.stats_label = tk.Label(self.window, text="FPS: - | Speed: - | Progress: -", fg="#a39cb4", bg="#150f30", font=("Outfit", 8))
         self.stats_label.pack(anchor="w", padx=15, pady=5)
 
-    def show(self):
+    def show(self, manual=False):
+        if manual:
+            self.manually_opened = True
         # Position in bottom-right corner
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
@@ -136,6 +139,12 @@ class StatusOverlay:
     def hide(self):
         self.window.withdraw()
         self.visible = False
+        self.manually_opened = False
+
+    def update_idle_state(self):
+        self.job_label.config(text="Status: Idle\nAwaiting transcoding tasks...")
+        self.stats_label.config(text=f"Mode: {config.get('transcoderMode', 'cpu').upper()} | Host: {hostname}")
+        self.canvas.delete("all")
 
     def update_jobs(self, active_jobs):
         if not active_jobs:
@@ -427,8 +436,11 @@ def update_gui_loop():
                 status_window.show()
             status_window.update_jobs(client_active_jobs)
         else:
-            if status_window.visible:
-                status_window.hide()
+            if status_window.manually_opened:
+                status_window.update_idle_state()
+            else:
+                if status_window.visible:
+                    status_window.hide()
     except Exception as e:
         print(f"GUI Update loop error: {e}")
 
@@ -449,7 +461,7 @@ if __name__ == "__main__":
 
         # Setup System Tray Icon
         def show_overlay_action(icon, item):
-            root.after(0, status_window.show)
+            root.after(0, lambda: status_window.show(manual=True))
 
         def exit_action(icon, item):
             icon.stop()
