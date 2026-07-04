@@ -8,6 +8,18 @@ import shutil
 import subprocess
 import threading
 import base64
+import traceback
+
+def log_event(msg):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}] {msg}\n"
+    print(msg)
+    try:
+        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client.log")
+        with open(log_path, "a") as f:
+            f.write(log_line)
+    except Exception:
+        pass
 
 # Attempt to load GUI dependencies
 HAS_GUI = False
@@ -389,16 +401,22 @@ def start_websocket_client():
             print(f"Error handling WebSocket message: {e}")
 
     def on_open(ws_conn, *args, **kwargs):
-        print("Connected to Load Balancer WebSocket Server!")
-        # Register capabilities
-        ws_conn.send(json.dumps({
-            "type": "register",
-            "hostname": hostname,
-            "capabilities": capabilities
-        }))
+        log_event("Connected to Load Balancer WebSocket Server! Sending registration...")
+        try:
+            payload = json.dumps({
+                "type": "register",
+                "hostname": hostname,
+                "capabilities": capabilities
+            })
+            log_event(f"Sending payload: {payload}")
+            ws_conn.send(payload)
+            log_event("Registration payload sent successfully.")
+        except Exception as ex:
+            log_event(f"Error in on_open during send: {ex}")
+            log_event(traceback.format_exc())
 
     def on_close(ws_conn, *args, **kwargs):
-        print("WebSocket connection closed.")
+        log_event("WebSocket connection closed.")
         # Kill all running jobs if disconnected
         for job_id, job in list(client_active_jobs.items()):
             if "process" in job:
@@ -406,11 +424,13 @@ def start_websocket_client():
         client_active_jobs.clear()
 
     def on_error(ws_conn, error, *args, **kwargs):
-        print(f"WebSocket Error: {error}")
+        log_event(f"WebSocket Error: {error}")
+        log_event(traceback.format_exc())
 
     # Reconnection loop
     while True:
         try:
+            log_event(f"Connecting to server at {server_url}...")
             ws = websocket.WebSocketApp(
                 server_url,
                 on_open=on_open,
@@ -420,7 +440,8 @@ def start_websocket_client():
             )
             ws.run_forever(ping_interval=10, ping_timeout=5)
         except Exception as e:
-            print(f"WebSocket running error: {e}")
+            log_event(f"WebSocket running error: {e}")
+            log_event(traceback.format_exc())
         time.sleep(5)
 
 # Periodic GUI Updater loop
