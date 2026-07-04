@@ -30,7 +30,7 @@ function logEvent(message) {
   const entry = `[${timestamp}] ${message}`;
   console.log(entry);
   systemLogs.push(entry);
-  if (systemLogs.length > 500) {
+  if (systemLogs.length > 100) {
     systemLogs.shift();
   }
   broadcastState();

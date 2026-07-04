@@ -362,13 +362,14 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                 except Exception:
                     pass
 
-                # Also forward raw stderr as logs back to server console
-                job_id_bytes = job_id.encode('utf-8')
-                header = bytes([len(job_id_bytes)]) + job_id_bytes + bytes([0x04])
-                try:
-                    ws.send(header + line.encode('utf-8'), opcode=0x02)
-                except Exception:
-                    pass
+                # Also forward raw stderr as logs back to server console if debug log is enabled
+                if config.get("enableDebugLog", False):
+                    job_id_bytes = job_id.encode('utf-8')
+                    header = bytes([len(job_id_bytes)]) + job_id_bytes + bytes([0x04])
+                    try:
+                        ws.send(header + line.encode('utf-8'), opcode=0x02)
+                    except Exception:
+                        pass
 
     t_stdout = threading.Thread(target=relay_stdout, daemon=True)
     t_stderr = threading.Thread(target=parse_stderr, daemon=True)
