@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serviio Transcoder Load Balancer</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts: Outfit & Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0d0b18 0%, #150f30 100%);
+      --card-bg: rgba(25, 20, 50, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --neon-blue: #00d2ff;
+      --neon-purple: #9d4edd;
+      --neon-green: #390099;
+      --success-neon: #00f5d4;
+      --text-main: #f3f0fc;
+      --text-muted: #a39cb4;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, h5, h6, .brand-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+    }
+
+    /* Glassmorphism Cards */
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 12px 40px 0 rgba(157, 78, 221, 0.15);
+      transform: translateY(-2px);
+    }
+
+    /* Header Styling */
+    header {
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(13, 11, 24, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand-glow {
+      text-shadow: 0 0 12px rgba(157, 78, 221, 0.6);
+      background: linear-gradient(45deg, #00d2ff, #9d4edd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Badges & Stats */
+    .stat-box {
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(45deg, var(--neon-blue), var(--success-neon));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      background-color: var(--success-neon);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px var(--success-neon);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 245, 212, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(0, 245, 212, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 245, 212, 0);
+      }
+    }
+
+    /* Progress bar */
+    .progress {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar-neon {
+      background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
+      box-shadow: 0 0 8px rgba(157, 78, 221, 0.5);
+    }
+
+    /* Logs Terminal */
+    .log-terminal {
+      background-color: rgba(10, 8, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.85rem;
+      max-height: 250px;
+      overflow-y: auto;
+      color: #39ff14; /* Matrix Green */
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    }
+
+    .log-terminal::-webkit-scrollbar {
+      width: 6px;
+    }
+    .log-terminal::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    .log-line {
+      margin-bottom: 0.25rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    /* Custom Tables */
+    .table {
+      color: var(--text-main);
+      margin-bottom: 0;
+    }
+
+    .table th {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+    }
+
+    .table td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+      font-size: 0.9rem;
+    }
+
+    .badge-gpu {
+      background: rgba(0, 210, 255, 0.15);
+      color: var(--neon-blue);
+      border: 1px solid rgba(0, 210, 255, 0.3);
+    }
+
+    .badge-cpu {
+      background: rgba(157, 78, 221, 0.15);
+      color: var(--neon-purple);
+      border: 1px solid rgba(157, 78, 221, 0.3);
+    }
+
+    .badge-status-idle {
+      background: rgba(163, 156, 180, 0.1);
+      color: var(--text-muted);
+      border: 1px solid rgba(163, 156, 180, 0.2);
+    }
+
+    .badge-status-active {
+      background: rgba(0, 245, 212, 0.15);
+      color: var(--success-neon);
+      border: 1px solid rgba(0, 245, 212, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="py-3 mb-4">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-cpu-fill fs-2 me-3 text-info"></i>
+        <div>
+          <span class="fs-4 brand-title brand-glow">Serviio Transcoder</span>
+          <span class="badge bg-secondary ms-2 fw-normal" style="font-size: 0.75rem;">Load Balancer</span>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-3 mt-2 mt-sm-0">
+        <div class="text-end d-none d-md-block">
+          <small class="text-muted d-block">Server IP Address</small>
+          <span class="fw-semibold text-info" id="server-ip">0.0.0.0</span>
+        </div>
+        <div class="vr bg-white opacity-25 d-none d-md-block" style="height: 30px;"></div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="pulse-dot"></span>
+          <small class="fw-semibold">System Online</small>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mb-5">
+
+    <!-- Stats row -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-4">
+        <div class="glass-card stat-box">
+          <div class="stat-number" id="stat-active-transcodes">0</div>
+          <div class="text-muted fw-semibold">Active Transcode Jobs</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="glass-card stat-box">
+          <div class="stat-number" id="stat-connected-nodes">0</div>
+          <div class="text-muted fw-semibold">Connected Client Nodes</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="glass-card stat-box">
+          <div class="stat-number text-uppercase" id="stat-transcode-mode">-</div>
+          <div class="text-muted fw-semibold">Transcoding Mode</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Grid -->
+    <div class="row g-4 mb-4">
+      <!-- Active Nodes -->
+      <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0"><i class="bi bi-laptop me-2 text-primary"></i>Client Nodes</h4>
+            <span class="badge bg-dark border border-secondary text-muted" id="node-count-badge">0 Nodes</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Client Hostname</th>
+                  <th>IP Address</th>
+                  <th>Hardware</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="nodes-table-body">
+                <tr>
+                  <td colspan="4" class="text-center py-4 text-muted">No clients connected.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Transcodes -->
+      <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0"><i class="bi bi-play-circle me-2 text-success"></i>Active Transcodes</h4>
+            <span class="badge bg-dark border border-secondary text-muted" id="job-count-badge">0 Jobs</span>
+          </div>
+          <div id="active-jobs-container" class="d-flex flex-column gap-3">
+            <div class="text-center py-4 text-muted">No active transcode jobs.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs & Config -->
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0"><i class="bi bi-terminal me-2 text-warning"></i>System Events Console</h4>
+            <button class="btn btn-sm btn-outline-secondary text-muted px-3" onclick="clearLogs()">Clear Console</button>
+          </div>
+          <div class="log-terminal" id="logs-container">
+            <div class="log-line">System started. Awaiting connection...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-center py-4 mt-auto border-top border-secondary border-opacity-25">
+    <div class="container text-muted">
+      <small>Serviio Transcoder Load Balancer &bull; pair-programmed with Antigravity</small>
+    </div>
+  </footer>
+
+  <!-- Polling Javascript -->
+  <script>
+    let localLogs = [];
+
+    async function updateStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) throw new Error('Network response not ok');
+        const data = await res.json();
+
+        // 1. Update Server IP and config stats
+        document.getElementById('server-ip').textContent = data.serverIp;
+        document.getElementById('stat-active-transcodes').textContent = data.jobs.length;
+        document.getElementById('stat-connected-nodes').textContent = data.nodes.length;
+        document.getElementById('stat-transcode-mode').textContent = data.config.TRANSCODE_TEMP_MODE;
+
+        document.getElementById('node-count-badge').textContent = `${data.nodes.length} Nodes`;
+        document.getElementById('job-count-badge').textContent = `${data.jobs.length} Jobs`;
+
+        // 2. Render Nodes Table
+        const nodesTbody = document.getElementById('nodes-table-body');
+        if (data.nodes.length === 0) {
+          nodesTbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-muted">No clients connected. Awaiting clients...</td></tr>`;
+        } else {
+          nodesTbody.innerHTML = data.nodes.map(node => {
+            const hws = [];
+            if (node.capabilities.nvidia) hws.push('<span class="badge badge-gpu me-1"><i class="bi bi-nvidia me-1"></i>Nvidia NVENC</span>');
+            if (node.capabilities.amd) hws.push('<span class="badge badge-gpu me-1"><i class="bi bi-cpu-fill me-1"></i>AMD AMF</span>');
+            if (node.capabilities.cpu) hws.push('<span class="badge badge-cpu"><i class="bi bi-cpu me-1"></i>CPU</span>');
+
+            const statusClass = node.status === 'transcoding' ? 'badge-status-active' : 'badge-status-idle';
+            const statusLabel = node.status === 'transcoding' ? '<i class="bi bi-broadcast me-1"></i>Transcoding' : '<i class="bi bi-check-circle me-1"></i>Idle';
+
+            return `
+              <tr>
+                <td class="fw-semibold">${node.hostname}</td>
+                <td><code class="text-info">${node.ip}</code></td>
+                <td>${hws.join('')}</td>
+                <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        // 3. Render Active Jobs
+        const jobsContainer = document.getElementById('active-jobs-container');
+        if (data.jobs.length === 0) {
+          jobsContainer.innerHTML = `<div class="text-center py-4 text-muted">No active transcode jobs.</div>`;
+        } else {
+          jobsContainer.innerHTML = data.jobs.map(job => {
+            const filename = job.args.match(/file=([^&]+)/)?.[1] 
+              ? decodeURIComponent(job.args.match(/file=([^&]+)/)[1]).split(/[\\/]/).pop()
+              : "Standard Stream";
+
+            const progressPercent = job.stats.percentage || 0;
+            const progressSpeed = job.stats.speed || "N/A";
+            const progressFps = job.stats.fps || "N/A";
+            const progressTime = job.stats.time || "N/A";
+
+            return `
+              <div class="glass-card p-3 border-opacity-50">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div style="max-width: 75%;">
+                    <h6 class="mb-0 text-truncate text-info" title="${filename}">${filename}</h6>
+                    <small class="text-muted">Node: <strong class="text-light">${job.node}</strong> | ID: <code>${job.id}</code></small>
+                  </div>
+                  <span class="badge bg-success-subtle text-success border border-success border-opacity-25" style="font-size: 0.75rem;">
+                    ${progressSpeed}x speed
+                  </span>
+                </div>
+                <div class="progress mb-2">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated progress-bar-neon" 
+                       role="progressbar" 
+                       style="width: ${progressPercent > 0 ? progressPercent : 100}%" 
+                       aria-valuenow="${progressPercent}" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100"></div>
+                </div>
+                <div class="d-flex justify-content-between text-muted" style="font-size: 0.75rem;">
+                  <span>FPS: <strong>${progressFps}</strong></span>
+                  <span>Time: <strong>${progressTime}</strong></span>
+                  <span>Progress: <strong>${progressPercent}%</strong></span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 4. Render Logs
+        const logsContainer = document.getElementById('logs-container');
+        // Simple diff check to prevent constant scrolling if logs didn't change
+        if (JSON.stringify(data.logs) !== JSON.stringify(localLogs)) {
+          localLogs = data.logs;
+          logsContainer.innerHTML = data.logs.map(log => {
+            return `<div class="log-line">${log}</div>`;
+          }).join('');
+          // Auto scroll to bottom
+          logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+      } catch (err) {
+        console.error('Error fetching status:', err);
+      }
+    }
+
+    function clearLogs() {
+      document.getElementById('logs-container').innerHTML = '';
+      localLogs = [];
+    }
+
+    // Poll every 1 second
+    setInterval(updateStatus, 1000);
+    // Initial fetch
+    updateStatus();
+  </script>
+</body>
+</html>
