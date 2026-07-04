@@ -203,6 +203,12 @@
       color: var(--success-neon);
       border: 1px solid rgba(0, 245, 212, 0.3);
     }
+
+    .badge-status-offline {
+      background: rgba(230, 57, 70, 0.15);
+      color: #e63946;
+      border: 1px solid rgba(230, 57, 70, 0.3);
+    }
   </style>
 </head>
 <body>
@@ -338,7 +344,8 @@
         document.getElementById('stat-connected-nodes').textContent = data.nodes.length;
         document.getElementById('stat-transcode-mode').textContent = data.config.TRANSCODE_TEMP_MODE;
 
-        document.getElementById('node-count-badge').textContent = `${data.nodes.length} Nodes`;
+        const onlineCount = data.nodes.filter(n => n.status !== 'offline').length;
+        document.getElementById('node-count-badge').textContent = `${onlineCount} Online / ${data.nodes.length} Total`;
         document.getElementById('job-count-badge').textContent = `${data.jobs.length} Jobs`;
 
         // 2. Render Nodes Table
@@ -352,11 +359,20 @@
             if (node.capabilities.amd) hws.push('<span class="badge badge-gpu me-1"><i class="bi bi-cpu-fill me-1"></i>AMD AMF</span>');
             if (node.capabilities.cpu) hws.push('<span class="badge badge-cpu"><i class="bi bi-cpu me-1"></i>CPU</span>');
 
-            const statusClass = node.status === 'transcoding' ? 'badge-status-active' : 'badge-status-idle';
-            const statusLabel = node.status === 'transcoding' ? '<i class="bi bi-broadcast me-1"></i>Transcoding' : '<i class="bi bi-check-circle me-1"></i>Idle';
+            let statusClass = 'badge-status-idle';
+            let statusLabel = '<i class="bi bi-check-circle me-1"></i>Idle';
+            if (node.status === 'transcoding') {
+              statusClass = 'badge-status-active';
+              statusLabel = '<i class="bi bi-broadcast me-1"></i>Transcoding';
+            } else if (node.status === 'offline') {
+              statusClass = 'badge-status-offline';
+              statusLabel = '<i class="bi bi-x-circle me-1"></i>Offline';
+            }
+
+            const rowClass = node.status === 'offline' ? 'opacity-50 text-muted' : '';
 
             return `
-              <tr>
+              <tr class="${rowClass}">
                 <td class="fw-semibold">${node.hostname}</td>
                 <td><code class="text-info">${node.ip}</code></td>
                 <td>${hws.join('')}</td>

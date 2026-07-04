@@ -22,6 +22,7 @@ const CONFIG = {
 // Global State
 const clients = new Map(); // wsClient -> { id, ip, status, hostname, capabilities, startTime }
 const activeJobs = new Map(); // jobId -> { id, dummySocket, wsClient, status, args, originalArgs, startTime, fallbackProcess, outputStream }
+const knownNodes = new Map(); // key (hostname/ip) -> { hostname, ip, capabilities, status, lastSeen }
 let jobCounter = 0;
 const systemLogs = [];
 
@@ -82,14 +83,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API: Get status data for Dashboard
 app.get('/api/status', (req, res) => {
-  const nodes = Array.from(clients.values()).map(c => ({
-    id: c.id,
-    ip: c.ip,
-    hostname: c.hostname,
-    status: c.status,
-    capabilities: c.capabilities,
-    startTime: c.startTime
+  const nodes = Array.from(knownNodes.values()).map(n => ({
+    ip: n.ip,
+    hostname: n.hostname,
+    status: n.status,
+    capabilities: n.capabilities,
+    lastSeen: n.lastSeen
   }));
+
+  // Sort: online nodes first, then by lastSeen desc
+  nodes.sort((a, b) => {
+    if (a.status === 'offline' && b.status !== 'offline') return 1;
+    if (a.status !== 'offline' && b.status === 'offline') return -1;
+    return b.lastSeen - a.lastSeen;
+  });
 
   const jobs = Array.from(activeJobs.values()).map(j => ({
     id: j.id,
@@ -207,6 +214,17 @@ wss.on('connection', (ws, req) => {
           clientInfo.hostname = data.hostname || clientInfo.hostname;
           clientInfo.capabilities = data.capabilities || clientInfo.capabilities;
           logEvent(`Registered node: ${clientInfo.hostname} (${ip}) - Caps: ${JSON.stringify(clientInfo.capabilities)}`);
+          
+          // Update knownNodes registry
+          const regKey = clientInfo.hostname === 'Unknown' ? ip : clientInfo.hostname;
+          knownNodes.set(regKey, {
+            hostname: clientInfo.hostname,
+            ip: ip,
+            capabilities: clientInfo.capabilities,
+            status: 'idle',
+            lastSeen: Date.now()
+          });
+
           broadcastState();
           break;
 
@@ -235,6 +253,15 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     logEvent(`Client disconnected: ${clientInfo.hostname} (${ip})`);
+    
+    // Mark in knownNodes as offline
+    const discKey = clientInfo.hostname === 'Unknown' ? ip : clientInfo.hostname;
+    const knownNode = knownNodes.get(discKey);
+    if (knownNode) {
+      knownNode.status = 'offline';
+      knownNode.lastSeen = Date.now();
+    }
+
     clients.delete(ws);
 
     // Cancel any active jobs on this client
@@ -396,6 +423,14 @@ function startJob(jobId, dummySocket, initData) {
     info.status = 'transcoding';
     logEvent(`Assigned job ${jobId} to client: ${info.hostname} (${info.ip})`);
 
+    // Update knownNodes status
+    const assignKey = info.hostname === 'Unknown' ? info.ip : info.hostname;
+    const knownNode = knownNodes.get(assignKey);
+    if (knownNode) {
+      knownNode.status = 'transcoding';
+      knownNode.lastSeen = Date.now();
+    }
+
     // Prepare local output stream if we are streaming the output back
     if (outputMode === 'stream' && originalOutputPath) {
       try {
@@ -540,6 +575,14 @@ function cleanupJob(jobId, exitCode) {
     const info = clients.get(job.wsClient);
     if (info) {
       info.status = 'idle';
+
+      // Update knownNodes status
+      const cleanKey = info.hostname === 'Unknown' ? info.ip : info.hostname;
+      const knownNode = knownNodes.get(cleanKey);
+      if (knownNode) {
+        knownNode.status = 'idle';
+        knownNode.lastSeen = Date.now();
+      }
     }
   }
 
