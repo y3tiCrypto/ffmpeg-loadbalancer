@@ -226,6 +226,7 @@
         <div>
           <span class="fs-4 brand-title brand-glow">Serviio Transcoder</span>
           <span class="badge bg-secondary ms-2 fw-normal" style="font-size: 0.75rem;">Load Balancer</span>
+          <span class="badge bg-dark border border-secondary text-muted ms-2 fw-normal" style="font-size: 0.7rem; padding: 0.25em 0.5em;" id="server-version-badge">v1.0.0</span>
         </div>
       </div>
       <div class="d-flex align-items-center gap-3 mt-2 mt-sm-0">
@@ -330,7 +331,7 @@
 
   <footer class="text-center py-4 mt-auto border-top border-secondary border-opacity-25">
     <div class="container text-muted">
-      <small>Serviio Transcoder Load Balancer</small>
+      <small>Serviio Transcoder Load Balancer <span id="footer-version"></span></small>
     </div>
   </footer>
 
@@ -345,6 +346,8 @@
         const data = await res.json();
 
         // 1. Update Server IP and config stats
+        document.getElementById('server-version-badge').textContent = `v${data.version}`;
+        document.getElementById('footer-version').textContent = `v${data.version}`;
         document.getElementById('server-ip').textContent = data.serverIp;
         document.getElementById('stat-active-transcodes').textContent = data.jobs.length;
         document.getElementById('stat-connected-nodes').textContent = data.nodes.length;
