@@ -8,23 +8,7 @@ A high-performance, cross-platform distributed transcoding scheduler designed fo
 
 The cluster coordinates transcoding tasks across nodes using a multi-layered communication pipeline:
 
-```text
-+-------------------------+      +-------------------------+      +-------------------------+
-|      Media Server       | ---> |  Dummy FFmpeg Wrapper   | ---> |  Load Balancer Server   |
-|  (Serviio / Jellyfin)   |      |         (C++)           |      |        (NodeJS)         |
-+-------------------------+      +-------------------------+      +-------------------------+
-                                                                               |
-               +-----------------+-----------------+-----------------+---------+-------+
-               |                 |                 |                 |                 | (WebSockets)
-               v                 v                 v                 v                 v
-         +-----------+     +-----------+     +-----------+     +-----------+     +-----------+
-         | Client 1  |     | Client 2  |     | Client 3  |     | Client 4  |     | Client 5  |
-         |  GPU (N)  |     |  GPU (A)  |     |    CPU    |     |  GPU (N)  |     |    CPU    |
-         |  Windows  |     |   Linux   |     |  Windows  |     |   Linux   |     |   macOS   |
-         +-----------+     +-----------+     +-----------+     +-----------+     +-----------+
-               |                 |                 |                 |                 |
-               +-----------------+-----------------+-----------------+-----------------+--- (HTTP Media Stream)
-```
+![System Architecture](docs/architecture.png)
 
 ### Transcoding Execution Flow
 1.  **Request Interception**: When playback starts, the media server executes our compiled C++ **Dummy FFmpeg Wrapper** instead of the actual local FFmpeg binary. The wrapper captures the full command-line arguments and working directory, and transmits them to the server via a local TCP loopback socket.
