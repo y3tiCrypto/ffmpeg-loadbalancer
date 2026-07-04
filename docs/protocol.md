@@ -1,15 +1,16 @@
-# Protocol & Translation Specification
+# Protocol & Parameter Translation Specification
 
-This document details the communication protocols and parameter translations used in the load-balanced transcoder cluster.
+This document details the communication framing, data structures, and dynamic argument translations utilized across the distributed transcoding cluster.
 
 ---
 
-## 1. TCP Protocol: Dummy FFmpeg &harr; Server
+## 1. TCP Loopback Protocol (Wrapper &leftrightarrow; Server)
 
-The C++ dummy FFmpeg binary connects to the Load Balancer Server on `127.0.0.1:4001` (TCP) and speaks a packet-framed stream protocol.
+The compiled C++ dummy binary communicates with the Load Balancer Server over a local TCP loopback connection on port `4001`.
 
-### Packet Frame Format
-Every packet transmitted over the socket uses the following framing:
+### A. Packet Frame Structure
+Every packet is binary-framed to prevent stream fragmentation issues:
+
 ```text
 +-------------------+---------------------------+---------------------------------+
 | Type ID (1 byte)  | Payload Length (4 bytes)  | Payload Data (N bytes)          |
@@ -17,34 +18,32 @@ Every packet transmitted over the socket uses the following framing:
 +-------------------+---------------------------+---------------------------------+
 ```
 
-### Packet Types
+### B. Packet Types
 
-| Type ID | Name | Direction | Payload Description |
+| Type ID | Packet Name | Data Direction | Payload Description |
 | :--- | :--- | :--- | :--- |
-| `0x01` | **INIT** | Dummy &rarr; Server | A UTF-8 JSON string containing the execution environment. <br>Format: `{"cwd": "working_directory", "args": ["arg1", "arg2", ...]}` |
-| `0x02` | **STDIN** | Dummy &rarr; Server | Raw bytes read from the dummy's stdin. |
-| `0x03` | **STDOUT** | Server &rarr; Dummy | Raw bytes to write directly to the dummy's stdout. |
-| `0x04` | **STDERR** | Server &rarr; Dummy | Raw bytes to write directly to the dummy's stderr. |
-| `0x05` | **EXIT** | Server &rarr; Dummy | A 4-byte big-endian signed integer representing the exit code. The dummy exits with this code after receiving this packet. |
+| **`0x01`** | **INIT** | Wrapper &rarr; Server | UTF-8 JSON payload defining execution parameters. <br>Format: `{"cwd": "working_directory", "args": ["arg1", "arg2", ...]}` |
+| **`0x02`** | **STDIN** | Wrapper &rarr; Server | Raw binary bytes read from the wrapper's standard input. |
+| **`0x03`** | **STDOUT** | Server &rarr; Wrapper | Raw transcoded stream bytes written directly to the wrapper's stdout. |
+| **`0x04`** | **STDERR** | Server &rarr; Wrapper | Diagnostics and frame progress bytes relayed to the wrapper's stderr. |
+| **`0x05`** | **EXIT** | Server &rarr; Wrapper | 4-byte big-endian signed integer representing the exit code. The wrapper shuts down with this status. |
 
 ---
 
-## 2. WebSocket Protocol: Client &harr; Server
+## 2. WebSocket Protocol (Client &leftrightarrow; Server)
 
-The Transcoder Clients connect to the Load Balancer Server at `ws://<server_ip>:<port>/ws` and communicate using a combination of JSON control messages and binary stream frames.
+Transcoder Client nodes connect to the server via WebSockets (`ws://<server_ip>:4000/ws`) using a dual JSON/binary payload channel.
 
-### Cross-Version Callback Compatibility
-WebSocket callback handlers on the client are designed with variable argument signatures (`*args` and `**kwargs`) to accommodate differences in argument parameters between `websocket-client` library versions (e.g. `on_close` and `on_open` changes in version `0.x` vs `1.x`).
+> [!NOTE]
+> **Cross-Version API Compatibility**: Client callbacks use variable parameters (`*args`, `**kwargs`) to remain fully compatible across various Python `websocket-client` library versions (specifically `0.x` and `1.x` series releases).
 
-### A. JSON Messages (Control & Status Updates)
-
-#### 1. Registration (`type: register`)
-Sent by the client immediately upon connection to report capabilities.
+### A. Client Node Registration (`type: register`)
+Sent by the client node immediately upon connection:
 ```json
 {
   "type": "register",
   "hostname": "ClientNode1",
-  "os": "Windows", // 'Windows', 'Linux', or 'macOS'
+  "os": "Windows",
   "capabilities": {
     "cpu": true,
     "nvidia": true,
@@ -53,8 +52,8 @@ Sent by the client immediately upon connection to report capabilities.
 }
 ```
 
-#### 2. Start Transcode (`type: start_transcode`)
-Sent by the server to initiate transcoding on the client.
+### B. Job Dispatch Command (`type: start_transcode`)
+Sent by the server to initiate transcoding on the client:
 ```json
 {
   "type": "start_transcode",
@@ -65,10 +64,12 @@ Sent by the server to initiate transcoding on the client.
 }
 ```
 
-### B. HTTP Status API (`GET /api/status`)
-Used by the admin dashboard to retrieve the current status of all nodes (online and offline), active transcode jobs, and server logs.
+---
 
-**Example Response**:
+## 3. Server HTTP Dashboard Status API (`GET /api/status`)
+
+Used by the Web Dashboard to monitor active transcodes, client statuses, and cluster history:
+
 ```json
 {
   "version": "1.0.0",
@@ -87,11 +88,7 @@ Used by the admin dashboard to retrieve the current status of all nodes (online 
       "hostname": "Y3TI",
       "os": "Windows",
       "status": "idle",
-      "capabilities": {
-        "cpu": true,
-        "nvidia": true,
-        "amd": false
-      },
+      "capabilities": { "cpu": true, "nvidia": true, "amd": false },
       "lastSeen": 1720120194821
     }
   ],
@@ -118,29 +115,29 @@ Used by the admin dashboard to retrieve the current status of all nodes (online 
 
 ---
 
-## 3. Parameter and Path Translations
+## 4. Parameter & Path Translations
 
-Before executing the FFmpeg binary, the load balancer cluster modifies the command line parameters to optimize for remote network and hardware execution.
+The cluster implements real-time parser translation layers to optimize commands for network execution and GPU hardware constraints.
 
-### A. Automatic HLS Detection (Server-Side)
-Because HLS (Apple Live Streaming) output consists of multiple segment files and a dynamically updated playlist, it **cannot** be piped sequentially to standard output (`pipe:1`).
-*   The server automatically scans the incoming arguments. If any parameter contains the word `"hls"` (such as `-f hls` or `-hls_segment_filename`), it overrides the configuration and forces the job's `outputMode` to **`"shared_folder"`**.
-*   This prevents the last argument from being rewritten to `pipe:1`, allowing the client to write all segments and playlists directly to disk.
+### A. Automatic HLS Redirection
+Because Apple HTTP Live Streaming (HLS) generates multiple sequential segment files and a dynamically updated playlist, it cannot be written to a single stdout pipe (`pipe:1`).
+*   **Interception**: The server scans incoming parameters. If HLS keys are detected (e.g. `-f hls` or `-hls_segment_filename`), it overrides settings and forces the execution to **`"shared_folder"`** mode.
+*   **Result**: The wrapper keeps its standard output pipeline open while the remote client writes segment chunks directly to the shared network folders.
 
 ### B. Client-Side Path Translation (`pathMappings`)
-In `"shared_folder"` mode, the client must write files to a drive accessible by both machines. The client maps paths using the `"pathMappings"` configuration:
-*   *Example mapping:* `{"D:\\Serviio\\Serviio": "Z:\\"}`.
-*   The client searches all arguments for `D:\Serviio\Serviio` and translates them to `Z:\` (e.g., `D:\Serviio\Serviio\temp\playlist.m3u8` becomes `Z:\temp\playlist.m3u8`).
-*   The client automatically runs `os.makedirs` to create parent directories on the target network drive if they do not exist before starting the transcode, avoiding folder path write failures.
+In shared-folder mode, clients map the server's local path structure to their local network mounts using the `pathMappings` JSON dictionary:
+*   *Mapping Example*: `{"D:\\Serviio\\Serviio": "Z:\\"}`
+*   *Result*: An argument path like `D:\Serviio\Serviio\temp\pl.m3u8` is translated on-the-fly to `Z:\temp\pl.m3u8`.
+*   *Safety*: The client automatically calls `os.makedirs` on parent directories prior to running the transcode process to avoid write-access failures on newly generated directories.
 
-### C. GPU Parameter Compatibility Mapping
-Standard CPU encoding options configured in Serviio/Jellyfin cause failures when passed directly to hardware encoders. The client translates them on-the-fly:
+### C. GPU Compatibility Mapping
+Standard CPU parameters configured by media servers fail when passed directly to hardware-accelerated encoders. The client translates these command line arguments dynamically:
 
-1. **Preset Translation**:
-   - **Nvidia NVENC**: Maps CPU presets (`ultrafast` to `veryslow`) to NVENC presets (`p1` to `p7`).
-   - **AMD AMF**: Maps CPU presets to AMF presets (`speed`, `balanced`, `quality`).
-2. **Quality Parameter Mapping (`-crf`)**:
-   - Hardware encoders do not support Constant Rate Factor (`-crf`). The client automatically translates `-crf <val>` to Constant Quality target parameter `-cq <val>` for Nvidia NVENC and `-qp <val>` for AMD AMF.
-3. **Profile and Level Stripping**:
-   - GPU encoders do not support certain legacy CPU profiles (e.g. `baseline` profile is unsupported by NVENC) or syntax for levels.
-   - When mapping to hardware encoders, the client **automatically strips out** `-profile`, `-profile:v`, `-level`, and `-level:v` parameters entirely. This allows the GPU drivers to dynamically negotiate the optimal profile and level.
+1.  **Preset Conversion**:
+    *   **Nvidia NVENC**: Remaps CPU speed presets (`ultrafast` through `veryslow`) to NVENC presets (`p1` through `p7`).
+    *   **AMD AMF**: Remaps CPU speed presets to AMF parameters (`speed`, `balanced`, or `quality`).
+2.  **Constant Quality Conversion (`-crf`)**:
+    *   Since GPU encoders do not support Constant Rate Factor parameters directly, the client converts `-crf <val>` to Constant Quality targets (`-cq <val>` for Nvidia NVENC and `-qp <val>` for AMD AMF).
+3.  **Incompatible Argument Stripping**:
+    *   GPU encoders crash if passed conflicting profiles or levels (e.g., NVENC does not support `-profile:v baseline -level 3`).
+    *   When GPU modes are active, the client automatically strips `-profile`, `-profile:v`, `-level`, and `-level:v` parameters, letting the hardware driver negotiate the optimal settings.

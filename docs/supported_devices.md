@@ -1,4 +1,4 @@
-# Supported Devices & Compatibility List
+# Supported Devices & Compatibility
 
 This document lists the operating systems, hardware platforms, media servers, and software dependencies compatible with the Transcoder Load Balancer.
 
@@ -6,71 +6,62 @@ This document lists the operating systems, hardware platforms, media servers, an
 
 ## 1. Supported Operating Systems
 
-### A. Windows (Host & Client Nodes)
-*   **Versions**: Windows 10, Windows 11, Windows Server 2016 / 2019 / 2022
-*   **Runtimes**: Python 3.8+ (x86_64), Node.js v24+ (for Server Host)
-*   **GUI Mode**: Supported (displays system tray icon and status overlay widget in the bottom-right corner)
-*   **Headless Mode**: Supported
-
-### B. Linux (Host & Client Nodes)
-*   **Distributions**: Ubuntu (18.04+), Debian (10+), CentOS/RHEL/Rocky Linux (8+), Fedora, Arch Linux
-*   **GUI Mode**: Supported (requires desktop environment + Tkinter `python3-tk` package)
-*   **Headless Mode**: Supported (CLI-only mode automatically runs when X11/Wayland display server is not detected; GUI libraries like `pillow` and `pystray` are completely optional and not required to run)
-
-### C. macOS (Client Nodes Only)
-*   **Versions**: macOS 10.13 (High Sierra) and later
-*   **Headless Mode**: Supported (automatically runs in headless console mode)
+| Operating System | Client Node Support | Server Host Support | Display Modes |
+| :--- | :---: | :---: | :--- |
+| 💻 **Windows** (10, 11, Server 2016+) | Yes | Yes | Headless / Desktop GUI Mode (Tray & Status Overlay) |
+| 🐧 **Linux** (Ubuntu, Debian, RHEL, Arch) | Yes | Yes | Headless (Default) / Desktop GUI Mode (via `python3-tk`) |
+| 🍏 **macOS** (10.13 High Sierra+) | Yes | No | Headless (Console Mode Only) |
 
 ---
 
-## 2. Supported Hardware Acceleration APIs & Encoders
+## 2. Hardware Acceleration Compatibility
 
 ### A. NVIDIA NVENC (Nvidia Graphics Cards)
-*   **Architectures**: Kepler, Maxwell, Pascal, Turing, Ampere, Ada Lovelace, Blackwell
+*   **Supported Architectures**: Kepler, Maxwell, Pascal, Turing, Ampere, Ada Lovelace, Blackwell
 *   **Supported Encoders**: `h264_nvenc`, `hevc_nvenc`
-*   **Driver Requirement**: NVIDIA Proprietary Graphics Driver (v450+ on Windows/Linux)
-*   **Translation Mapping**:
-    *   Automatic CPU preset remapping (`ultrafast` to `veryslow` maps to NVENC `p1` to `p7`).
-    *   Automatic CRF parameter translation (`-crf` maps to `-cq`).
-    *   Automatic profile/level stripping to avoid encoder initialization failures.
+*   **Requirements**: Nvidia Proprietary Driver (v450.00+ on Windows and Linux)
+*   **Engine Conversions**:
+    *   Maps CPU presets (`ultrafast` &rarr; `veryslow`) to NVENC presets (`p1` &rarr; `p7`).
+    *   Translates Constant Rate Factor (`-crf`) to target quality variables (`-cq`).
+    *   Strips incompatible profiles/levels (e.g. `baseline`) automatically to avoid driver initialization crashes.
 
 ### B. AMD AMF (AMD Radeon Graphics Cards)
-*   **Architectures**: Radeon HD 7000 Series (GCN 1st Gen) and later; RX Series (400, 500, Vega, 5000, 6000, 7000, 8000+)
+*   **Supported Architectures**: Radeon HD 7000 Series (GCN 1.0) and later; RX Series (400, 500, Vega, 5000, 6000, 7000, 8000+)
 *   **Supported Encoders**: `h264_amf`, `hevc_amf`
-*   **Driver Requirement**: Radeon Software Crimson/Adrenalin (Windows), AMDGPU-Pro Proprietary Driver (Linux)
-*   **Translation Mapping**:
-    *   Automatic CPU preset remapping maps to AMF `speed`, `balanced`, or `quality`.
-    *   Automatic CRF parameter translation (`-crf` maps to `-qp`).
-    *   Automatic profile/level stripping.
+*   **Requirements**: Radeon Software Crimson/Adrenalin (Windows), AMDGPU-Pro Proprietary Driver (Linux)
+*   **Engine Conversions**:
+    *   Maps CPU presets to AMF presets (`speed`, `balanced`, or `quality`).
+    *   Translates Constant Rate Factor (`-crf`) to quantization parameters (`-qp`).
+    *   Strips incompatible profile/level constraints.
 
-### C. CPU Fallback (All CPUs)
-*   **Architectures**: x86, x86_64, ARM (ARM32/ARM64, e.g. Raspberry Pi 4/5, Apple Silicon M-series)
+### C. CPU Fallback (Standard Processing)
+*   **Supported Architectures**: x86_64, ARM (ARM32/ARM64, including Raspberry Pi 4/5 and Apple Silicon M-series)
 *   **Supported Encoders**: `libx264`, `libx265`, `libvpx`
-*   **Translation Mapping**: Executes the standard command line arguments natively without hardware overrides.
+*   **Engine Conversions**: Runs standard native CPU encoders directly without hardware translation filters.
 
 ---
 
-## 3. Supported Media Server Software
+## 3. Compatible Media Servers
 
 ### A. Serviio Media Server
-*   **Compatible Versions**: Serviio v2.0 and later
-*   **Configuration**: Replaces the lib executable via JVM argument `-Dffmpeg.location`.
+*   **Compatible Versions**: v2.0 or higher
+*   **Control Hook**: Native support via Java JVM setting `-Dffmpeg.location` mapped to the C++ dummy binary.
 
 ### B. Jellyfin Media Server
-*   **Compatible Versions**: Jellyfin v10.8.0 and later
-*   **Configuration**: Point the **FFmpeg path** setting in the dashboard directly to the load balancer wrapper binary.
+*   **Compatible Versions**: v10.8.0 or higher
+*   **Control Hook**: Native configuration via the **Playback &rarr; Transcoding &rarr; FFmpeg path** setting in the dashboard.
 
 ---
 
-## 4. Software Runtimes & Dependencies
+## 4. Software Dependencies
 
 ### Server Host Machine
-*   **Node.js**: v24.0.0 or higher
-*   **Express**: v4.19.0+
+*   **Runtime Environment**: Node.js **v24.0.0 or higher**
+*   **Express Framework**: v4.19.0+
 *   **ws** (WebSocket library): v8.17.0+
 
 ### Client Node Machines
-*   **Python**: v3.8.0 or higher
+*   **Runtime Environment**: Python **3.8 or higher**
 *   **websocket-client**: v1.0.0+ (Required)
-*   **Pillow** (PIL): v9.0.0+ (Optional, for Tray Icon/Overlay graphics)
-*   **pystray**: v0.19.0+ (Optional, for Tray Icon control)
+*   **Pillow** (PIL): v9.0.0+ (Optional, required for System Tray/Overlay UI graphics)
+*   **pystray**: v0.19.0+ (Optional, required for System Tray rendering)

@@ -1,18 +1,23 @@
-# Serviio & Jellyfin Transcoder Load Balancer Documentation
+# Transcoder Load Balancer Documentation
 
-Welcome to the documentation for the **FFmpeg Loadbalanced Transcoder for Serviio & Jellyfin**.
-
-This documentation is divided into the following guides:
-
-1. **[Setup & Installation Guide](setup.md)**: Details on compiling the C++ dummy wrapper, configuring Serviio / Jellyfin, and running the server/client nodes.
-2. **[Protocol Reference](protocol.md)**: Specifications for the TCP and WebSocket communication protocols used between components.
-3. **[Supported Devices](supported_devices.md)**: Compatibility lists for OS, hardware platforms, and software runtimes.
-4. **[Security Policy](../security.md)**: Important security details and configurations for hosting in a local network environment.
+Welcome to the documentation catalog for the **FFmpeg Distributed Transcoder Load Balancer for Serviio & Jellyfin**.
 
 ---
-## Repository Structure
 
-- `dummy-ffmpeg/`: Contains the C++ dummy FFmpeg wrapper source code (`ffmpeg.cpp`).
-- `server/`: Contains the NodeJS Load Balancer Server source code, Express media stream API, and the Bootstrap 5 Admin Dashboard.
-- `client/`: Contains the Python Client source code, config files, and the system tray/overlay GUI.
-- `docs/`: Deployment and specification documentation.
+## 📖 Document Index
+
+| Document | Link | Target Audience / Purpose |
+| :--- | :--- | :--- |
+| **Setup & Installation** | [setup.md](setup.md) | System administrators deploying client nodes or configuring Serviio / Jellyfin. |
+| **Supported Devices** | [supported_devices.md](supported_devices.md) | Compatibility list for operating systems, hardware encoders, and software runtimes. |
+| **Protocol Specifications** | [protocol.md](protocol.md) | Specifications for TCP packet frames, WebSocket JSON messages, and parameter translation layers. |
+| **Security Policy** | [../security.md](../security.md) | Network trust boundaries, firewall routing guidelines, and path traversal mitigations. |
+
+---
+
+## 🏗️ Repository Structure
+
+*   `dummy-ffmpeg/`: Source code (`ffmpeg.cpp`) for the C++ command interceptor wrapper.
+*   `server/`: Node.js scheduler application, HTTP streaming routes, and the glassmorphic Admin Dashboard.
+*   `client/`: Python node client script, Tkinter status overlay, and pystray tray control.
+*   `docs/`: Deployment, configuration, and developer guides.
