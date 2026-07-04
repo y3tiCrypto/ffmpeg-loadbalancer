@@ -111,17 +111,17 @@ class StatusOverlay:
 
         # Build Widgets
         self.title_label = tk.Label(self.window, text="FFmpeg Transcoder", fg="#00d2ff", bg="#150f30", font=("Outfit", 12, "bold"))
-        self.title_label.pack(anchor="w", px=15, py=5)
+        self.title_label.pack(anchor="w", padx=15, pady=5)
 
         self.job_label = tk.Label(self.window, text="Preparing transcode...", fg="#f3f0fc", bg="#150f30", font=("Outfit", 10), wraplength=290, justify="left")
-        self.job_label.pack(anchor="w", px=15, py=2)
+        self.job_label.pack(anchor="w", padx=15, pady=2)
 
         # Progress bar
         self.canvas = tk.Canvas(self.window, height=8, bg="#0d0b18", highlightthickness=0)
-        self.canvas.pack(fill="x", px=15, py=5)
+        self.canvas.pack(fill="x", padx=15, pady=5)
 
         self.stats_label = tk.Label(self.window, text="FPS: - | Speed: - | Progress: -", fg="#a39cb4", bg="#150f30", font=("Outfit", 8))
-        self.stats_label.pack(anchor="w", px=15, py=5)
+        self.stats_label.pack(anchor="w", padx=15, pady=5)
 
     def show(self):
         # Position in bottom-right corner
