@@ -3,6 +3,9 @@
   "ffmpegPath": "ffmpeg",
   "transcoderMode": "nvidia",
   "enableUi": true,
+  "pathMappings": {
+    "D:\\Serviio\\Serviio": "W:\\"
+  },
   "codecMappings": {
     "nvidia": {
       "libx264": "h264_nvenc",
