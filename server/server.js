@@ -743,13 +743,27 @@ function runLocalFallback(jobId, args, cwd) {
   });
 
   ffmpegProc.stderr.on('data', (data) => {
+    const text = data.toString('utf8');
+    if (!job.fallbackStderrLines) {
+      job.fallbackStderrLines = 0;
+    }
+    if (job.fallbackStderrLines < 20) {
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        if (line.trim() && job.fallbackStderrLines < 20) {
+          logEvent(`[Fallback stderr] ${line.trim()}`);
+          job.fallbackStderrLines++;
+        }
+      }
+    }
+
     sendPacketToDummy(job.dummySocket, PKT_STDERR, data);
     if (job.childSockets) {
       for (const childSocket of job.childSockets) {
         sendPacketToDummy(childSocket, PKT_STDERR, data);
       }
     }
-    parseLocalFfmpegProgress(data.toString('utf8'), job);
+    parseLocalFfmpegProgress(text, job);
   });
 
   ffmpegProc.on('close', (code) => {
