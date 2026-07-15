@@ -16,6 +16,8 @@ const CONFIG = {
   TCP_PORT: process.env.TCP_PORT || 4001,
   // Path to the real FFmpeg executable on the server for local fallback
   FALLBACK_FFMPEG_PATH: process.env.FALLBACK_FFMPEG_PATH || (isWin ? path.join(__dirname, '..', 'client', 'bin', 'ffmpeg.exe') : "/usr/lib/serviio/bin/ffmpeg"),
+  // Number of threads to allocate for local fallback FFmpeg (0 = auto)
+  FALLBACK_FFMPEG_THREADS: parseInt(process.env.FALLBACK_FFMPEG_THREADS || "0", 10),
   // Mode: "stream" (server writes client stream to disk) or "shared_folder" (client writes directly)
   TRANSCODE_TEMP_MODE: process.env.TRANSCODE_TEMP_MODE || "stream",
   LOCAL_TEMP_DIR: process.env.LOCAL_TEMP_DIR || (isWin ? "C:\\Windows\\Temp\\serviio\\transcoding-temp" : "/tmp/serviio/transcoding-temp"),
@@ -726,6 +728,25 @@ function runLocalFallback(jobId, args, cwd) {
   const procArgs = args.slice(1);
   if (!procArgs.includes('-stats')) {
     procArgs.unshift('-stats');
+  }
+
+  // Apply threads configuration if set in CONFIG
+  if (CONFIG.FALLBACK_FFMPEG_THREADS > 0) {
+    let threadsReplaced = false;
+    for (let i = 0; i < procArgs.length - 1; i++) {
+      if (procArgs[i] === '-threads') {
+        procArgs[i + 1] = CONFIG.FALLBACK_FFMPEG_THREADS.toString();
+        threadsReplaced = true;
+        break;
+      }
+    }
+    if (!threadsReplaced) {
+      procArgs.unshift(CONFIG.FALLBACK_FFMPEG_THREADS.toString());
+      procArgs.unshift('-threads');
+    }
+    // Add -filter_threads to enable multi-threaded scaling
+    procArgs.unshift(CONFIG.FALLBACK_FFMPEG_THREADS.toString());
+    procArgs.unshift('-filter_threads');
   }
 
   logEvent(`Executing fallback FFmpeg: "${CONFIG.FALLBACK_FFMPEG_PATH}" ${procArgs.join(' ')}`);
