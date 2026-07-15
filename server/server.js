@@ -782,7 +782,8 @@ function handleJobEnd(jobId, exitCode) {
   const job = activeJobs.get(jobId);
   if (!job) return;
 
-  const cleanExitCode = typeof exitCode === 'number' ? exitCode : 0;
+  // Convert exitCode to signed 32-bit integer to prevent Node.js RangeErrors
+  const cleanExitCode = typeof exitCode === 'number' ? (exitCode | 0) : 0;
   logEvent(`Job ${jobId} finished with exit code ${cleanExitCode}`);
 
   try {
