@@ -3,7 +3,7 @@
   "ffmpegPath": "bin/ffmpeg.exe",
   "transcoderMode": "nvidia",
   "enableUi": true,
-  "enableDebugLog": false,
+  "enableDebugLog": true,
   "pathMappings": {
     "D:\\Serviio\\Serviio": "Z:\\"
   },
