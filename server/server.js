@@ -236,6 +236,8 @@ wss.on('connection', (ws, req) => {
     hostname: 'Unknown',
     os: 'Unknown',
     capabilities: { cpu: true, nvidia: false, amd: false },
+    maxConcurrentJobs: 1,
+    activeJobsCount: 0,
     startTime: Date.now()
   };
 
@@ -257,7 +259,8 @@ wss.on('connection', (ws, req) => {
           clientInfo.hostname = data.hostname || clientInfo.hostname;
           clientInfo.capabilities = data.capabilities || clientInfo.capabilities;
           clientInfo.os = data.os || 'Unknown';
-          logEvent(`Registered node: ${clientInfo.hostname} (${ip}) - OS: ${clientInfo.os} - Caps: ${JSON.stringify(clientInfo.capabilities)}`);
+          clientInfo.maxConcurrentJobs = data.maxConcurrentJobs || 1;
+          logEvent(`Registered node: ${clientInfo.hostname} (${ip}) - OS: ${clientInfo.os} - Caps: ${JSON.stringify(clientInfo.capabilities)} - MaxJobs: ${clientInfo.maxConcurrentJobs}`);
           
           // Update knownNodes registry
           const regKey = clientInfo.hostname === 'Unknown' ? ip : clientInfo.hostname;
@@ -266,6 +269,8 @@ wss.on('connection', (ws, req) => {
             ip: ip,
             os: clientInfo.os,
             capabilities: clientInfo.capabilities,
+            maxConcurrentJobs: clientInfo.maxConcurrentJobs,
+            activeJobsCount: 0,
             status: 'idle',
             lastSeen: Date.now()
           });
@@ -550,7 +555,9 @@ function startJob(jobId, dummySocket, initData) {
   // Find best available client
   let selectedWs = null;
   for (const [ws, info] of clients.entries()) {
-    if (info.status === 'idle') {
+    const activeCount = info.activeJobsCount || 0;
+    const maxJobs = info.maxConcurrentJobs || 1;
+    if (activeCount < maxJobs) {
       selectedWs = ws;
       break;
     }
@@ -573,14 +580,16 @@ function startJob(jobId, dummySocket, initData) {
 
   if (selectedWs) {
     const info = clients.get(selectedWs);
-    info.status = 'transcoding';
-    logEvent(`Assigned job ${jobId} to client: ${info.hostname} (${info.ip})`);
+    info.activeJobsCount = (info.activeJobsCount || 0) + 1;
+    info.status = info.activeJobsCount >= info.maxConcurrentJobs ? 'busy' : 'idle';
+    logEvent(`Assigned job ${jobId} to client: ${info.hostname} (${info.ip}) - Active jobs: ${info.activeJobsCount}/${info.maxConcurrentJobs}`);
 
     // Update knownNodes status
     const assignKey = info.hostname === 'Unknown' ? info.ip : info.hostname;
     const knownNode = knownNodes.get(assignKey);
     if (knownNode) {
-      knownNode.status = 'transcoding';
+      knownNode.activeJobsCount = info.activeJobsCount;
+      knownNode.status = info.activeJobsCount >= info.maxConcurrentJobs ? 'busy' : 'idle';
       knownNode.lastSeen = Date.now();
     }
 
@@ -837,13 +846,16 @@ function cleanupJob(jobId, exitCode) {
   if (job.wsClient) {
     const info = clients.get(job.wsClient);
     if (info) {
-      info.status = 'idle';
+      info.activeJobsCount = Math.max(0, (info.activeJobsCount || 0) - 1);
+      info.status = info.activeJobsCount >= info.maxConcurrentJobs ? 'busy' : 'idle';
+      logEvent(`Released job ${jobId} from client: ${info.hostname} (${info.ip}) - Active jobs: ${info.activeJobsCount}/${info.maxConcurrentJobs}`);
 
       // Update knownNodes status
       const cleanKey = info.hostname === 'Unknown' ? info.ip : info.hostname;
       const knownNode = knownNodes.get(cleanKey);
       if (knownNode) {
-        knownNode.status = 'idle';
+        knownNode.activeJobsCount = info.activeJobsCount;
+        knownNode.status = info.activeJobsCount >= info.maxConcurrentJobs ? 'busy' : 'idle';
         knownNode.lastSeen = Date.now();
       }
     }
