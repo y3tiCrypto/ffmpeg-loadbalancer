@@ -94,19 +94,23 @@ app.get('/api/status', (req, res) => {
     os: n.os,
     status: n.status,
     capabilities: n.capabilities,
+    activeJobsCount: n.activeJobsCount || 0,
+    maxConcurrentJobs: n.maxConcurrentJobs || 1,
     lastSeen: n.lastSeen
   }));
 
-  // Check if any local fallback job is running
-  const isLocalFallbackRunning = Array.from(activeJobs.values()).some(j => !j.wsClient && j.status === 'transcoding');
+  // Check how many local fallback jobs are running
+  const localJobsCount = Array.from(activeJobs.values()).filter(j => !j.wsClient && j.status === 'transcoding').length;
 
   // Add the Local Server node itself
   nodes.push({
     ip: '127.0.0.1',
     hostname: 'Local Server',
     os: isWin ? 'Windows' : 'Linux',
-    status: isLocalFallbackRunning ? 'transcoding' : 'idle',
+    status: localJobsCount > 0 ? 'transcoding' : 'idle',
     capabilities: { cpu: true, nvidia: false, amd: false },
+    activeJobsCount: localJobsCount,
+    maxConcurrentJobs: 4, // Local fallback can handle up to 4 concurrent processes by default
     lastSeen: Date.now()
   });
 

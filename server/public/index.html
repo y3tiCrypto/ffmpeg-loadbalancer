@@ -370,12 +370,12 @@
 
             let statusClass = 'badge-status-idle';
             let statusLabel = '<i class="bi bi-check-circle me-1"></i>Idle';
-            if (node.status === 'transcoding') {
-              statusClass = 'badge-status-active';
-              statusLabel = '<i class="bi bi-broadcast me-1"></i>Transcoding';
-            } else if (node.status === 'offline') {
+            if (node.status === 'offline') {
               statusClass = 'badge-status-offline';
               statusLabel = '<i class="bi bi-x-circle me-1"></i>Offline';
+            } else if (node.activeJobsCount > 0) {
+              statusClass = 'badge-status-active';
+              statusLabel = `<i class="bi bi-broadcast me-1"></i>Active (${node.activeJobsCount}/${node.maxConcurrentJobs})`;
             }
 
             const rowClass = node.status === 'offline' ? 'opacity-50 text-muted' : '';
