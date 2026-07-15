@@ -537,12 +537,12 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     exit_code = proc.wait()
     log_event(f"FFmpeg process for job {job_id} exited with code {exit_code}")
 
-    if exit_code != 0:
+    if exit_code != 0 and not job.get("stopping"):
         # Detect hardware encoding initialization failures
         is_hw_error = False
         hw_error_msg = ""
         for line in job.get("stderr_lines", []):
-            if any(term in line for term in ["nvenc", "AMF_ERROR", "amf_shared", "Error while opening encoder", "Driver does not support"]):
+            if any(term in line for term in ["AMF_ERROR", "amf_shared", "Error while opening encoder", "Driver does not support", "OpenEncodeSessionEx failed", "No NVENC capable devices", "nvenc failed"]):
                 is_hw_error = True
                 hw_error_msg = line
                 break
