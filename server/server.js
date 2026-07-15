@@ -481,13 +481,18 @@ function startJob(jobId, dummySocket, initData) {
       if (activeJob.originalOutputPath) {
         const activeOutputDir = path.dirname(activeJob.originalOutputPath);
         if (activeOutputDir.toLowerCase() === outputDir.toLowerCase()) {
-          logEvent(`Found duplicate job ${activeJobId} for output directory ${outputDir}. Terminating old job.`);
-          if (activeJob.wsClient) {
-            activeJob.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId: activeJobId }));
-          } else if (activeJob.fallbackProcess) {
-            activeJob.fallbackProcess.kill();
+          // Only terminate older duplicate jobs if they have been running for at least 3 seconds
+          if (Date.now() - activeJob.startTime > 3000) {
+            logEvent(`Found duplicate job ${activeJobId} for output directory ${outputDir}. Terminating old job.`);
+            if (activeJob.wsClient) {
+              activeJob.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId: activeJobId }));
+            } else if (activeJob.fallbackProcess) {
+              activeJob.fallbackProcess.kill();
+            }
+            cleanupJob(activeJobId, 0);
+          } else {
+            logEvent(`Duplicate job ${activeJobId} detected for same folder, but it started recently (${Date.now() - activeJob.startTime}ms ago). Allowing concurrent execution.`);
           }
-          cleanupJob(activeJobId, 0);
         }
       }
     }
