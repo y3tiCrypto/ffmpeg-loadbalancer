@@ -88,16 +88,34 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API: Get status data for Dashboard
 app.get('/api/status', (req, res) => {
-  const nodes = Array.from(knownNodes.values()).map(n => ({
-    ip: n.ip,
-    hostname: n.hostname,
-    os: n.os,
-    status: n.status,
-    capabilities: n.capabilities,
-    activeJobsCount: n.activeJobsCount || 0,
-    maxConcurrentJobs: n.maxConcurrentJobs || 1,
-    lastSeen: n.lastSeen
-  }));
+  const nodes = Array.from(knownNodes.values()).map(n => {
+    // Find active connection info from clients Map if online
+    let activeJobsCount = 0;
+    let maxConcurrentJobs = n.maxConcurrentJobs || 1;
+    let currentStatus = n.status;
+
+    if (currentStatus !== 'offline') {
+      for (const [ws, info] of clients.entries()) {
+        if (info.hostname === n.hostname || info.ip === n.ip) {
+          activeJobsCount = info.activeJobsCount || 0;
+          maxConcurrentJobs = info.maxConcurrentJobs || 1;
+          currentStatus = info.status;
+          break;
+        }
+      }
+    }
+
+    return {
+      ip: n.ip,
+      hostname: n.hostname,
+      os: n.os,
+      status: currentStatus,
+      capabilities: n.capabilities,
+      activeJobsCount,
+      maxConcurrentJobs,
+      lastSeen: n.lastSeen
+    };
+  });
 
   // Check how many local fallback jobs are running
   const localJobsCount = Array.from(activeJobs.values()).filter(j => !j.wsClient && j.status === 'transcoding').length;
