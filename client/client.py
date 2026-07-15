@@ -355,12 +355,18 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             if remote_path in arg:
                 rewritten_args[i] = arg.replace(remote_path, local_path)
 
-    # Intercept HLS output paths and redirect them to a local temp folder
+    # Intercept HLS output paths and redirect them to a local temp folder ONLY if not remapped to a network share
     hls_temp_dir = None
     is_hls_job = False
     for i in range(len(rewritten_args)):
         arg = rewritten_args[i]
         if ".stf" in arg:
+            # Check if this argument was remapped by pathMappings (e.g. to a network drive like Z:\)
+            was_remapped = (args[i] != rewritten_args[i])
+            if was_remapped:
+                log_event(f"HLS output path is mapped directly to network share: {arg}. Skipping local temp folder redirection.")
+                continue
+
             is_hls_job = True
             match = re.search(r"transcoding-temp-[0-9a-fA-F]+\.stf", arg)
             if match:
