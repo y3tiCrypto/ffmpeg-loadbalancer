@@ -10,6 +10,23 @@ import threading
 import base64
 import traceback
 
+ws_lock = threading.Lock()
+
+def safe_send(payload, opcode=None):
+    global ws
+    if not ws:
+        return False
+    try:
+        with ws_lock:
+            if opcode is not None:
+                ws.send(payload, opcode=opcode)
+            else:
+                ws.send(payload)
+        return True
+    except Exception as e:
+        log_event(f"Error in safe_send: {e}")
+        return False
+
 def log_event(msg):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     log_line = f"[{timestamp}] {msg}\n"
@@ -339,8 +356,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     except Exception as e:
         log_event(f"Failed to start FFmpeg: {e}")
         # Send fail exit code
-        if ws:
-            ws.send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": 1}))
+        safe_send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": 1}))
         client_active_jobs.pop(job_id, None)
         return
 
@@ -353,10 +369,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             # Send binary packet: [jobId len (1 byte)] [jobId] [stream type: 0x03] [data]
             job_id_bytes = job_id.encode('utf-8')
             header = bytes([len(job_id_bytes)]) + job_id_bytes + bytes([0x03])
-            try:
-                ws.send(header + chunk, opcode=0x02) # Binary frame
-            except Exception as e:
-                log_event(f"Error sending stdout chunk: {e}")
+            if not safe_send(header + chunk, opcode=0x02):
                 break
 
     # Thread 2: Relay/Parse stderr progress logs
@@ -381,26 +394,20 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                 parse_progress_line(line, job)
 
                 # Send progress to server
-                try:
-                    ws.send(json.dumps({
-                        "type": "progress",
-                        "jobId": job_id,
-                        "fps": job["fps"],
-                        "speed": job["speed"],
-                        "bitrate": job.get("bitrate", "N/A"),
-                        "time": job["time"],
-                        "percentage": job["percentage"]
-                    }))
-                except Exception:
-                    pass
+                safe_send(json.dumps({
+                    "type": "progress",
+                    "jobId": job_id,
+                    "fps": job["fps"],
+                    "speed": job["speed"],
+                    "bitrate": job.get("bitrate", "N/A"),
+                    "time": job["time"],
+                    "percentage": job["percentage"]
+                }))
 
                 # Always forward raw stderr back to server so Serviio can parse progress and monitor health
                 job_id_bytes = job_id.encode('utf-8')
                 header = bytes([len(job_id_bytes)]) + job_id_bytes + bytes([0x04])
-                try:
-                    ws.send(header + line.encode('utf-8'), opcode=0x02)
-                except Exception:
-                    pass
+                safe_send(header + line.encode('utf-8'), opcode=0x02)
 
     t_stdout = threading.Thread(target=relay_stdout, daemon=True)
     t_stderr = threading.Thread(target=parse_stderr, daemon=True)
@@ -425,16 +432,13 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                 except Exception:
                     continue
                 
-                try:
-                    ws.send(json.dumps({
-                        "type": "sync_file",
-                        "jobId": job_id,
-                        "folder": stf_folder,
-                        "file": "playlist.m3u8",
-                        "content": base64.b64encode(playlist_content.encode("utf-8")).decode("utf-8")
-                    }))
-                except Exception:
-                    pass
+                safe_send(json.dumps({
+                    "type": "sync_file",
+                    "jobId": job_id,
+                    "folder": stf_folder,
+                    "file": "playlist.m3u8",
+                    "content": base64.b64encode(playlist_content.encode("utf-8")).decode("utf-8")
+                }))
                 
                 lines = playlist_content.splitlines()
                 for line in lines:
@@ -446,7 +450,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                                 try:
                                     with open(segment_path, "rb") as f:
                                         segment_data = f.read()
-                                    ws.send(json.dumps({
+                                    safe_send(json.dumps({
                                         "type": "sync_file",
                                         "jobId": job_id,
                                         "folder": stf_folder,
@@ -463,7 +467,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                 try:
                     with open(playlist_path, "r", encoding="utf-8") as f:
                         playlist_content = f.read()
-                    ws.send(json.dumps({
+                    safe_send(json.dumps({
                         "type": "sync_file",
                         "jobId": job_id,
                         "folder": stf_folder,
@@ -523,10 +527,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             log_event("--- End of FFmpeg stderr ---")
 
     # Notify Server
-    try:
-        ws.send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": exit_code}))
-    except Exception:
-        pass
+    safe_send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": exit_code}))
 
     # Cleanup job
     client_active_jobs.pop(job_id, None)
