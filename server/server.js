@@ -117,14 +117,23 @@ app.get('/api/status', (req, res) => {
     return b.lastSeen - a.lastSeen;
   });
 
-  const jobs = Array.from(activeJobs.values()).map(j => ({
-    id: j.id,
-    status: j.status,
-    node: j.wsClient ? clients.get(j.wsClient)?.hostname || 'Remote Node' : (j.isCoalesced ? `Coalesced -> ${j.parentJobId}` : 'Local Fallback'),
-    args: j.args ? j.args.slice(1).join(' ') : '', // Skip original path
-    startTime: j.startTime || Date.now(),
-    stats: j.stats || {}
-  }));
+  const jobs = Array.from(activeJobs.values()).map(j => {
+    let stats = j.stats || {};
+    if (j.isCoalesced && j.parentJobId) {
+      const parentJob = activeJobs.get(j.parentJobId);
+      if (parentJob && parentJob.stats) {
+        stats = parentJob.stats;
+      }
+    }
+    return {
+      id: j.id,
+      status: j.status,
+      node: j.wsClient ? clients.get(j.wsClient)?.hostname || 'Remote Node' : (j.isCoalesced ? `Coalesced -> ${j.parentJobId}` : 'Local Fallback'),
+      args: j.args ? j.args.slice(1).join(' ') : '', // Skip original path
+      startTime: j.startTime || Date.now(),
+      stats
+    };
+  });
 
   res.json({
     version: VERSION,
@@ -286,7 +295,8 @@ wss.on('connection', (ws, req) => {
               speed: data.speed,
               bitrate: data.bitrate,
               time: data.time,
-              percentage: data.percentage
+              percentage: data.percentage,
+              transcodeMode: data.transcodeMode || 'cpu'
             };
             broadcastState();
           }
@@ -711,6 +721,7 @@ function parseLocalFfmpegProgress(chunk, job) {
         job.stats.fps = fpsMatch ? parseInt(fpsMatch[1], 10) : 0;
         job.stats.speed = speedMatch ? `${speedMatch[1]}x` : 'N/A';
         job.stats.bitrate = bitrateMatch ? bitrateMatch[1] : 'N/A';
+        job.stats.transcodeMode = 'cpu';
 
         // Calculate percentage
         const parts = timeMatch[1].split(':');

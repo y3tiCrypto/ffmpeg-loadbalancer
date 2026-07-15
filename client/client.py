@@ -245,15 +245,29 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
         log_event(f"Configured FFmpeg thread count to {threads_count} (threads and filter_threads)")
 
     # Rewrite codecs based on config mode
-    mode = "cpu" if force_cpu else config["transcoderMode"]
+    global_mode = config["transcoderMode"]
+    mode = "cpu" if force_cpu else global_mode
     
-    # Fallback checking
-    if mode == "nvidia" and not capabilities["nvidia"]:
-        log_event("Nvidia GPU not detected. Falling back to CPU.")
-        mode = "cpu"
-    elif mode == "amd" and not capabilities["amd"]:
-        log_event("AMD GPU not detected. Falling back to CPU.")
-        mode = "cpu"
+    # Check GPU limit
+    if mode in ["nvidia", "amd"]:
+        if mode == "nvidia" and not capabilities["nvidia"]:
+            log_event("Nvidia GPU not detected. Falling back to CPU.")
+            mode = "cpu"
+        elif mode == "amd" and not capabilities["amd"]:
+            log_event("AMD GPU not detected. Falling back to CPU.")
+            mode = "cpu"
+        else:
+            max_gpu_jobs = int(config.get("maxGpuJobs", 1))
+            active_gpu_count = 0
+            for active_job in client_active_jobs.values():
+                # Count other jobs that actually selected GPU
+                if active_job.get("transcodeMode") in ["nvidia", "amd"]:
+                    active_gpu_count += 1
+            if active_gpu_count >= max_gpu_jobs:
+                log_event(f"Active GPU transcode count ({active_gpu_count}) reached limit ({max_gpu_jobs}). Falling back to CPU for job {job_id}.")
+                mode = "cpu"
+                
+    job["transcodeMode"] = mode
 
     if mode in config["codecMappings"]:
         mappings = config["codecMappings"][mode]
@@ -423,7 +437,8 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                     "speed": job["speed"],
                     "bitrate": job.get("bitrate", "N/A"),
                     "time": job["time"],
-                    "percentage": job["percentage"]
+                    "percentage": job["percentage"],
+                    "transcodeMode": job.get("transcodeMode", "cpu")
                 }))
 
                 # Always forward raw stderr back to server so Serviio can parse progress and monitor health
@@ -638,7 +653,8 @@ def start_websocket_client():
                 "type": "register",
                 "hostname": hostname,
                 "os": "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux"),
-                "capabilities": capabilities
+                "capabilities": capabilities,
+                "maxConcurrentJobs": int(config.get("maxConcurrentJobs", 1))
             })
             log_event(f"Sending payload: {payload}")
             ws_conn.send(payload)

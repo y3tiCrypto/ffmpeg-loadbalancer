@@ -412,12 +412,17 @@
             const progressFps = job.stats.fps || "N/A";
             const progressTime = job.stats.time || "N/A";
 
+            const transcodeMode = job.stats.transcodeMode || "cpu";
+            const modeBadge = (transcodeMode.toLowerCase() === "nvidia" || transcodeMode.toLowerCase() === "amd")
+              ? '<span class="badge bg-info-subtle text-info border border-info border-opacity-25 ms-1" style="font-size: 0.7rem; padding: 0.1em 0.4em;"><i class="bi bi-nvidia me-1"></i>GPU</span>'
+              : '<span class="badge bg-secondary-subtle text-light border border-secondary border-opacity-25 ms-1" style="font-size: 0.7rem; padding: 0.1em 0.4em;"><i class="bi bi-cpu-fill me-1"></i>CPU</span>';
+
             return `
               <div class="glass-card p-3 border-opacity-50">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                   <div style="max-width: 75%;">
                     <h6 class="mb-0 text-truncate text-info" title="${filename}">${filename}</h6>
-                    <small class="text-muted">Node: <strong class="text-light">${job.node}</strong> | ID: <code>${job.id}</code></small>
+                    <small class="text-muted">Node: <strong class="text-light">${job.node}</strong> | ID: <code>${job.id}</code> | ${modeBadge}</small>
                   </div>
                   <span class="badge bg-success-subtle text-success border border-success border-opacity-25" style="font-size: 0.75rem;">
                     ${progressSpeed}x speed
