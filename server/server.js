@@ -15,7 +15,7 @@ const CONFIG = {
   HTTP_PORT: process.env.HTTP_PORT || 4000,
   TCP_PORT: process.env.TCP_PORT || 4001,
   // Path to the real FFmpeg executable on the server for local fallback
-  FALLBACK_FFMPEG_PATH: process.env.FALLBACK_FFMPEG_PATH || (isWin ? "C:\\Program Files\\Serviio\\lib\\ffmpeg.exe" : "/usr/lib/serviio/bin/ffmpeg"),
+  FALLBACK_FFMPEG_PATH: process.env.FALLBACK_FFMPEG_PATH || (isWin ? path.join(__dirname, '..', 'client', 'bin', 'ffmpeg.exe') : "/usr/lib/serviio/bin/ffmpeg"),
   // Mode: "stream" (server writes client stream to disk) or "shared_folder" (client writes directly)
   TRANSCODE_TEMP_MODE: process.env.TRANSCODE_TEMP_MODE || "stream",
   LOCAL_TEMP_DIR: process.env.LOCAL_TEMP_DIR || (isWin ? "C:\\Windows\\Temp\\serviio\\transcoding-temp" : "/tmp/serviio/transcoding-temp"),
