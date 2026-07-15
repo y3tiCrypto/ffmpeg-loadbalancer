@@ -84,6 +84,13 @@ const httpServer = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 app.use(express.json());
+
+// Disable caching to prevent browsers caching old dashboard assets (like index.html)
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API: Get status data for Dashboard
@@ -96,11 +103,11 @@ app.get('/api/status', (req, res) => {
 
     if (currentStatus !== 'offline') {
       for (const [ws, info] of clients.entries()) {
-        if (info.hostname === n.hostname || info.ip === n.ip) {
-          activeJobsCount = info.activeJobsCount || 0;
+        // Filter by active open WebSocket state (1 = ws.OPEN) to avoid matching stale/dead sockets
+        if (ws.readyState === 1 && (info.hostname === n.hostname || info.ip === n.ip)) {
+          activeJobsCount = Math.max(activeJobsCount, info.activeJobsCount || 0);
           maxConcurrentJobs = info.maxConcurrentJobs || 1;
           currentStatus = info.status;
-          break;
         }
       }
     }
