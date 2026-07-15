@@ -664,6 +664,59 @@ function rewriteArgsForClients(args) {
   return { rewrittenArgs, outputMode, originalOutputPath };
 }
 
+// Parse progress stats from local fallback FFmpeg stderr
+function parseLocalFfmpegProgress(chunk, job) {
+  if (!job.stderrBuffer) {
+    job.stderrBuffer = '';
+  }
+  job.stderrBuffer += chunk;
+  
+  const lines = job.stderrBuffer.split(/\r?\n/);
+  job.stderrBuffer = lines.pop() || '';
+  
+  for (const line of lines) {
+    // Parse duration
+    if (line.includes('Duration:')) {
+      const match = line.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+      if (match) {
+        const hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const seconds = parseInt(match[3], 10);
+        job.durationSeconds = (hours * 3600) + (minutes * 60) + seconds;
+      }
+    }
+
+    // Parse progress stats
+    if (line.includes('frame=') || line.includes('size=')) {
+      const frameMatch = line.match(/frame=\s*(\d+)/);
+      const fpsMatch = line.match(/fps=\s*([\d.]+)/);
+      const timeMatch = line.match(/time=\s*([\d:.]+)/);
+      const speedMatch = line.match(/speed=\s*([\d.]+)x/);
+      const bitrateMatch = line.match(/bitrate=\s*([\d.kmb/s]+)/);
+
+      if (timeMatch) {
+        if (!job.stats) job.stats = {};
+        job.stats.time = timeMatch[1];
+        job.stats.fps = fpsMatch ? parseInt(fpsMatch[1], 10) : 0;
+        job.stats.speed = speedMatch ? `${speedMatch[1]}x` : 'N/A';
+        job.stats.bitrate = bitrateMatch ? bitrateMatch[1] : 'N/A';
+
+        // Calculate percentage
+        const parts = timeMatch[1].split(':');
+        if (parts.length === 3) {
+          const secs = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+          if (job.durationSeconds && job.durationSeconds > 0) {
+            job.stats.percentage = Math.min(100, Math.round((secs / job.durationSeconds) * 100));
+          } else {
+            job.stats.percentage = 0;
+          }
+        }
+        broadcastState();
+      }
+    }
+  }
+}
+
 // Execute FFmpeg locally on the server if no client nodes are connected
 function runLocalFallback(jobId, args, cwd) {
   const job = activeJobs.get(jobId);
@@ -671,6 +724,9 @@ function runLocalFallback(jobId, args, cwd) {
 
   // Extract argument options (skip the first element which is the dummy's path)
   const procArgs = args.slice(1);
+  if (!procArgs.includes('-stats')) {
+    procArgs.unshift('-stats');
+  }
 
   logEvent(`Executing fallback FFmpeg: "${CONFIG.FALLBACK_FFMPEG_PATH}" ${procArgs.join(' ')}`);
 
@@ -693,6 +749,7 @@ function runLocalFallback(jobId, args, cwd) {
         sendPacketToDummy(childSocket, PKT_STDERR, data);
       }
     }
+    parseLocalFfmpegProgress(data.toString('utf8'), job);
   });
 
   ffmpegProc.on('close', (code) => {
