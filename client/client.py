@@ -294,6 +294,25 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             if remote_path in arg:
                 rewritten_args[i] = arg.replace(remote_path, local_path)
 
+    # Intercept HLS output paths and redirect them to a local temp folder
+    hls_temp_dir = None
+    is_hls_job = False
+    for i in range(len(rewritten_args)):
+        arg = rewritten_args[i]
+        if ".stf" in arg:
+            is_hls_job = True
+            match = re.search(r"transcoding-temp-[0-9a-fA-F]+\.stf", arg)
+            if match:
+                stf_folder = match.group(0)
+                hls_temp_dir = os.path.join(os.environ.get("TEMP", "C:\\Windows\\Temp"), "serviio-loadbalancer", stf_folder)
+                os.makedirs(hls_temp_dir, exist_ok=True)
+                
+                base_name = os.path.basename(arg)
+                if "%05d.ts" in base_name:
+                    rewritten_args[i] = os.path.join(hls_temp_dir, "segment%05d.ts")
+                else:
+                    rewritten_args[i] = os.path.join(hls_temp_dir, base_name)
+
     # Ensure parent directories exist for any absolute output files
     for arg in rewritten_args:
         if (os.path.isabs(arg) or (len(arg) > 2 and arg[1] == ':')) and '.' in os.path.basename(arg):
@@ -305,7 +324,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                 log_event(f"Warning: could not create parent directory for {arg}: {ex}")
 
     # Build command line
-    cmd = [config["ffmpegPath"]] + rewritten_args[1:] # Skip dummy executable path
+    cmd = [config["ffmpegPath"], "-stats"] + rewritten_args[1:] # Skip dummy executable path
     log_event(f"Executing: {' '.join(cmd)}")
 
     try:
@@ -314,7 +333,7 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdin=subprocess.PIPE,
-            bufsize=1024 * 64
+            bufsize=0
         )
         job["process"] = proc
     except Exception as e:
@@ -388,6 +407,83 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     t_stderr = threading.Thread(target=parse_stderr, daemon=True)
     t_stdout.start()
     t_stderr.start()
+
+    # Thread 3: Sync HLS files in real-time
+    if is_hls_job and hls_temp_dir:
+        def sync_hls_files():
+            synced_segments = set()
+            playlist_path = os.path.join(hls_temp_dir, "playlist.m3u8")
+            stf_folder = os.path.basename(hls_temp_dir)
+            
+            while proc.poll() is None:
+                time.sleep(0.1)
+                if not os.path.exists(playlist_path):
+                    continue
+                
+                try:
+                    with open(playlist_path, "r", encoding="utf-8") as f:
+                        playlist_content = f.read()
+                except Exception:
+                    continue
+                
+                try:
+                    ws.send(json.dumps({
+                        "type": "sync_file",
+                        "jobId": job_id,
+                        "folder": stf_folder,
+                        "file": "playlist.m3u8",
+                        "content": base64.b64encode(playlist_content.encode("utf-8")).decode("utf-8")
+                    }))
+                except Exception:
+                    pass
+                
+                lines = playlist_content.splitlines()
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith("#") and line.endswith(".ts"):
+                        if line not in synced_segments:
+                            segment_path = os.path.join(hls_temp_dir, line)
+                            if os.path.exists(segment_path):
+                                try:
+                                    with open(segment_path, "rb") as f:
+                                        segment_data = f.read()
+                                    ws.send(json.dumps({
+                                        "type": "sync_file",
+                                        "jobId": job_id,
+                                        "folder": stf_folder,
+                                        "file": line,
+                                        "content": base64.b64encode(segment_data).decode("utf-8")
+                                    }))
+                                    synced_segments.add(line)
+                                    log_event(f"Synced segment {line} to server.")
+                                except Exception as e:
+                                    log_event(f"Error syncing segment {line}: {e}")
+                                    
+            # Final sync
+            if os.path.exists(playlist_path):
+                try:
+                    with open(playlist_path, "r", encoding="utf-8") as f:
+                        playlist_content = f.read()
+                    ws.send(json.dumps({
+                        "type": "sync_file",
+                        "jobId": job_id,
+                        "folder": stf_folder,
+                        "file": "playlist.m3u8",
+                        "content": base64.b64encode(playlist_content.encode("utf-8")).decode("utf-8")
+                    }))
+                except Exception:
+                    pass
+            
+            # Clean up local HLS temp files
+            try:
+                time.sleep(1.0)
+                shutil.rmtree(hls_temp_dir)
+                log_event(f"Cleaned up local HLS temp directory: {hls_temp_dir}")
+            except Exception as e:
+                log_event(f"Failed to clean up local HLS temp directory: {e}")
+
+        t_sync = threading.Thread(target=sync_hls_files, daemon=True)
+        t_sync.start()
 
     # Wait for process exit
     exit_code = proc.wait()

@@ -190,6 +190,28 @@ app.get('/api/media', (req, res) => {
   }
 });
 
+// API: Get Serviio logs for debugging
+app.get('/api/serviio-log', (req, res) => {
+  const logPaths = [
+    'D:\\Serviio\\Serviio\\log\\serviio.log',
+    'C:\\Program Files\\Serviio\\log\\serviio.log',
+    'C:\\Program Files\\Serviio\\bin\\..\\log\\serviio.log'
+  ];
+  for (const logPath of logPaths) {
+    if (fs.existsSync(logPath)) {
+      try {
+        const logContent = fs.readFileSync(logPath, 'utf8');
+        const lines = logContent.split('\n');
+        return res.json({ path: logPath, lines: lines.slice(-150) });
+      } catch (e) {
+        return res.status(500).send(`Error reading log file: ${e.message}`);
+      }
+    }
+  }
+  res.status(404).send('Serviio log file not found');
+});
+
+
 // Upgrade HTTP to WebSocket for client connections
 httpServer.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
@@ -260,6 +282,32 @@ wss.on('connection', (ws, req) => {
               percentage: data.percentage
             };
             broadcastState();
+          }
+          break;
+
+        case 'sync_file':
+          if (data.folder && data.file && data.content) {
+            try {
+              const job = activeJobs.get(data.jobId);
+              let destFile = null;
+              if (job && job.originalOutputPath) {
+                const baseDir = path.dirname(job.originalOutputPath);
+                if (!fs.existsSync(baseDir)) {
+                  fs.mkdirSync(baseDir, { recursive: true });
+                }
+                destFile = path.join(baseDir, data.file);
+              } else {
+                const destDir = path.join('D:\\Serviio\\Serviio', 'transcoding-temp-' + data.folder.replace('transcoding-temp-', ''));
+                if (!fs.existsSync(destDir)) {
+                  fs.mkdirSync(destDir, { recursive: true });
+                }
+                destFile = path.join(destDir, data.file);
+              }
+              const fileBuffer = Buffer.from(data.content, 'base64');
+              fs.writeFileSync(destFile, fileBuffer);
+            } catch (err) {
+              console.error(`Error writing synced file ${data.file}:`, err.message);
+            }
           }
           break;
 
@@ -434,7 +482,8 @@ function startJob(jobId, dummySocket, initData) {
     originalArgs,
     startTime: Date.now(),
     stats: {},
-    outputStream: null
+    outputStream: null,
+    originalOutputPath
   };
 
   activeJobs.set(jobId, job);
