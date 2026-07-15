@@ -451,6 +451,16 @@ const tcpServer = net.createServer({ allowHalfOpen: true }, (socket) => {
 
   socket.on('error', (err) => {
     logEvent(`TCP socket error for job ${jobId}: ${err.message}`);
+    // Cleanup immediately to prevent race conditions on reconnect
+    const job = activeJobs.get(jobId);
+    if (job) {
+      if (job.wsClient) {
+        job.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId }));
+      } else if (job.fallbackProcess) {
+        job.fallbackProcess.kill();
+      }
+      cleanupJob(jobId, 1);
+    }
   });
 });
 
@@ -463,6 +473,25 @@ function startJob(jobId, dummySocket, initData) {
 
   // Rewrite arguments
   const { rewrittenArgs, outputMode, originalOutputPath } = rewriteArgsForClients(originalArgs);
+
+  // Terminate any duplicate active transcode jobs targeting the same output directory
+  if (originalOutputPath && originalOutputPath.toLowerCase().includes('.stf')) {
+    const outputDir = path.dirname(originalOutputPath);
+    for (const [activeJobId, activeJob] of activeJobs.entries()) {
+      if (activeJob.originalOutputPath) {
+        const activeOutputDir = path.dirname(activeJob.originalOutputPath);
+        if (activeOutputDir.toLowerCase() === outputDir.toLowerCase()) {
+          logEvent(`Found duplicate job ${activeJobId} for output directory ${outputDir}. Terminating old job.`);
+          if (activeJob.wsClient) {
+            activeJob.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId: activeJobId }));
+          } else if (activeJob.fallbackProcess) {
+            activeJob.fallbackProcess.kill();
+          }
+          cleanupJob(activeJobId, 0);
+        }
+      }
+    }
+  }
 
   // Find best available client
   let selectedWs = null;
