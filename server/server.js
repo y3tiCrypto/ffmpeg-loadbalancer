@@ -339,7 +339,7 @@ function sendPacketToDummy(socket, type, payload) {
 }
 
 // TCP Server Logic (Local Dummy FFmpeg Executions)
-const tcpServer = net.createServer((socket) => {
+const tcpServer = net.createServer({ allowHalfOpen: true }, (socket) => {
   let buffer = Buffer.alloc(0);
   let jobId = null;
 
