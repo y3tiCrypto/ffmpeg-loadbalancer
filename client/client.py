@@ -260,7 +260,10 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             max_gpu_jobs = int(config.get("maxGpuJobs", 1))
             active_gpu_count = 0
             for active_job in client_active_jobs.values():
-                # Count other jobs that actually selected GPU
+                # Skip jobs that are in the process of stopping or have already exited
+                if active_job.get("stopping") or (active_job.get("process") and active_job["process"].poll() is not None):
+                    continue
+                # Count only jobs that are actually transcoding via GPU
                 if active_job.get("transcodeMode") in ["nvidia", "amd"]:
                     active_gpu_count += 1
             if active_gpu_count >= max_gpu_jobs:
@@ -633,9 +636,11 @@ def start_websocket_client():
             elif data["type"] == "stop_transcode":
                 job_id = data["jobId"]
                 job = client_active_jobs.get(job_id)
-                if job and "process" in job:
-                    log_event(f"Stopping transcode job {job_id} by request of server...")
-                    job["process"].kill()
+                if job:
+                    job["stopping"] = True
+                    if "process" in job:
+                        log_event(f"Stopping transcode job {job_id} by request of server...")
+                        job["process"].kill()
 
             elif data["type"] == "stdin":
                 job_id = data["jobId"]
