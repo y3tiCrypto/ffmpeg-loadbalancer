@@ -118,9 +118,9 @@ app.get('/api/status', (req, res) => {
   const jobs = Array.from(activeJobs.values()).map(j => ({
     id: j.id,
     status: j.status,
-    node: j.wsClient ? clients.get(j.wsClient)?.hostname || 'Remote Node' : 'Local Fallback',
-    args: j.args.slice(1).join(' '), // Skip original path
-    startTime: j.startTime,
+    node: j.wsClient ? clients.get(j.wsClient)?.hostname || 'Remote Node' : (j.isCoalesced ? `Coalesced -> ${j.parentJobId}` : 'Local Fallback'),
+    args: j.args ? j.args.slice(1).join(' ') : '', // Skip original path
+    startTime: j.startTime || Date.now(),
     stats: j.stats || {}
   }));
 
@@ -530,7 +530,10 @@ function startJob(jobId, dummySocket, initData) {
         isCoalesced: true,
         parentJobId: existingJob.id,
         status: 'coalesced',
-        originalOutputPath
+        originalOutputPath,
+        args: existingJob.args || [],
+        startTime: Date.now(),
+        stats: {}
       };
       activeJobs.set(jobId, job);
 
