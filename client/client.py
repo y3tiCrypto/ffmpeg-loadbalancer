@@ -266,8 +266,6 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             if active_gpu_count >= max_gpu_jobs:
                 log_event(f"Active GPU transcode count ({active_gpu_count}) reached limit ({max_gpu_jobs}). Falling back to CPU for job {job_id}.")
                 mode = "cpu"
-                
-    job["transcodeMode"] = mode
 
     if mode in config["codecMappings"]:
         mappings = config["codecMappings"][mode]
@@ -320,6 +318,13 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
                 filtered_args.append(arg)
                 idx += 1
         rewritten_args = filtered_args
+
+    # Determine the actual mode based on whether a GPU codec is present in rewritten arguments
+    gpu_codecs = ["h264_nvenc", "hevc_nvenc", "h264_amf", "hevc_amf"]
+    is_using_gpu = any(codec in rewritten_args for codec in gpu_codecs)
+    actual_mode = mode if is_using_gpu else "cpu"
+    job["transcodeMode"] = actual_mode
+    log_event(f"Determined transcode mode for job {job_id}: {actual_mode.upper()}")
 
     # Extract clean filename from args for display
     file_name = "Stream"
