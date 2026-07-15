@@ -144,7 +144,22 @@ void receive_thread_func(SOCKET sock) {
     }
 }
 
+#ifdef _WIN32
+#include <windows.h>
+std::string utf16_to_utf8(const std::wstring& wstr) {
+    if (wstr.empty()) return std::string();
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    return strTo;
+}
+#endif
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t* argv[]) {
+#else
 int main(int argc, char* argv[]) {
+#endif
     // 1. Initialize Winsock/Sockets
 #ifdef _WIN32
     WSADATA wsaData;
@@ -182,15 +197,28 @@ int main(int argc, char* argv[]) {
 
     // 4. Construct INIT JSON
     // Get current working directory
-    char cwd_buf[1024];
     std::string cwd = "";
+#ifdef _WIN32
+    wchar_t* cwd_buf = _wgetcwd(nullptr, 0);
+    if (cwd_buf != nullptr) {
+        cwd = utf16_to_utf8(cwd_buf);
+        free(cwd_buf);
+    }
+#else
+    char cwd_buf[1024];
     if (GetCurrentDir(cwd_buf, sizeof(cwd_buf)) != nullptr) {
         cwd = cwd_buf;
     }
+#endif
 
     std::string json = "{\n  \"cwd\": \"" + escape_json(cwd) + "\",\n  \"args\": [\n";
     for (int i = 0; i < argc; ++i) {
-        json += "    \"" + escape_json(argv[i]) + "\"";
+#ifdef _WIN32
+        std::string arg_utf8 = utf16_to_utf8(argv[i]);
+#else
+        std::string arg_utf8 = argv[i];
+#endif
+        json += "    \"" + escape_json(arg_utf8) + "\"";
         if (i < argc - 1) json += ",\n";
     }
     json += "\n  ]\n}";
