@@ -199,14 +199,14 @@ class StatusOverlay:
         self.canvas.create_rectangle(0, 0, bar_width, 8, fill="#9d4edd", width=0)
 
 # FFmpeg Execution & Parsing logic
-def run_ffmpeg(job_id, args, output_mode, output_path):
+def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     global ws
     job = client_active_jobs.get(job_id)
     if not job: return
 
     # Rewrite codecs based on config mode
     rewritten_args = list(args)
-    mode = config["transcoderMode"]
+    mode = "cpu" if force_cpu else config["transcoderMode"]
     
     # Fallback checking
     if mode == "nvidia" and not capabilities["nvidia"]:
@@ -353,11 +353,10 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
                 line = stderr_buffer.decode('utf-8', errors='ignore')
                 stderr_buffer.clear()
 
-                # Store stderr lines for troubleshooting
-                if config.get("enableDebugLog", False):
-                    job.setdefault("stderr_lines", []).append(line.strip())
-                    if len(job["stderr_lines"]) > 50:
-                        job["stderr_lines"].pop(0)
+                # Store stderr lines for troubleshooting and hardware fallback analysis
+                job.setdefault("stderr_lines", []).append(line.strip())
+                if len(job["stderr_lines"]) > 50:
+                    job["stderr_lines"].pop(0)
 
                 # Parse progress stats
                 parse_progress_line(line, job)
@@ -394,11 +393,39 @@ def run_ffmpeg(job_id, args, output_mode, output_path):
     exit_code = proc.wait()
     log_event(f"FFmpeg process for job {job_id} exited with code {exit_code}")
 
-    if exit_code != 0 and config.get("enableDebugLog", False):
-        log_event(f"--- FFmpeg stderr output for job {job_id} (Failed) ---")
+    if exit_code != 0:
+        # Detect hardware encoding initialization failures
+        is_hw_error = False
+        hw_error_msg = ""
         for line in job.get("stderr_lines", []):
-            log_event(f"[FFmpeg-stderr] {line}")
-        log_event("--- End of FFmpeg stderr ---")
+            if any(term in line for term in ["nvenc", "AMF_ERROR", "amf_shared", "Error while opening encoder", "Driver does not support"]):
+                is_hw_error = True
+                hw_error_msg = line
+                break
+        
+        if is_hw_error and mode in ["nvidia", "amd"] and not force_cpu:
+            log_event(f"Hardware encoder initialization failed: {hw_error_msg.strip()}")
+            log_event("Attempting automatic self-healing fallback to CPU transcoding...")
+            
+            # Re-initialize the active job entry before recursing
+            client_active_jobs[job_id] = {
+                "thread": job.get("thread"),
+                "fileName": job.get("fileName", "Stream"),
+                "fps": 0,
+                "speed": 0.0,
+                "time": "00:00:00",
+                "percentage": 0,
+                "duration_seconds": job.get("duration_seconds", 0.0),
+                "stderr_lines": []
+            }
+            run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=True)
+            return
+
+        if config.get("enableDebugLog", False):
+            log_event(f"--- FFmpeg stderr output for job {job_id} (Failed) ---")
+            for line in job.get("stderr_lines", []):
+                log_event(f"[FFmpeg-stderr] {line}")
+            log_event("--- End of FFmpeg stderr ---")
 
     # Notify Server
     try:
