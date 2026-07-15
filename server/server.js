@@ -362,10 +362,20 @@ function handleClientStream(buffer) {
     } else {
       // Send directly back to dummy's stdout
       sendPacketToDummy(job.dummySocket, PKT_STDOUT, data);
+      if (job.childSockets) {
+        for (const childSocket of job.childSockets) {
+          sendPacketToDummy(childSocket, PKT_STDOUT, data);
+        }
+      }
     }
   } else if (streamType === PKT_STDERR) {
     // Send stderr logs back to dummy's stderr
     sendPacketToDummy(job.dummySocket, PKT_STDERR, data);
+    if (job.childSockets) {
+      for (const childSocket of job.childSockets) {
+        sendPacketToDummy(childSocket, PKT_STDERR, data);
+      }
+    }
   }
 }
 
@@ -438,28 +448,52 @@ const tcpServer = net.createServer({ allowHalfOpen: true }, (socket) => {
       const job = activeJobs.get(jobId);
       if (job) {
         logEvent(`Dummy FFmpeg connection closed for job ${jobId}`);
-        // If the dummy socket is closed, make sure the client stops transcoding
-        if (job.wsClient) {
-          job.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId }));
-        } else if (job.fallbackProcess) {
-          job.fallbackProcess.kill();
+        if (job.isCoalesced) {
+          const parentJob = activeJobs.get(job.parentJobId);
+          if (parentJob && parentJob.childSockets) {
+            parentJob.childSockets = parentJob.childSockets.filter(s => s !== socket);
+          }
+          activeJobs.delete(jobId);
+        } else {
+          if (job.wsClient) {
+            job.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId }));
+          } else if (job.fallbackProcess) {
+            job.fallbackProcess.kill();
+          }
+          if (job.childSockets) {
+            for (const childSocket of job.childSockets) {
+              try { childSocket.destroy(); } catch (err) {}
+            }
+          }
+          cleanupJob(jobId, 0);
         }
-        cleanupJob(jobId, 0);
       }
     }
   });
 
   socket.on('error', (err) => {
     logEvent(`TCP socket error for job ${jobId}: ${err.message}`);
-    // Cleanup immediately to prevent race conditions on reconnect
     const job = activeJobs.get(jobId);
     if (job) {
-      if (job.wsClient) {
-        job.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId }));
-      } else if (job.fallbackProcess) {
-        job.fallbackProcess.kill();
+      if (job.isCoalesced) {
+        const parentJob = activeJobs.get(job.parentJobId);
+        if (parentJob && parentJob.childSockets) {
+          parentJob.childSockets = parentJob.childSockets.filter(s => s !== socket);
+        }
+        activeJobs.delete(jobId);
+      } else {
+        if (job.wsClient) {
+          job.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId }));
+        } else if (job.fallbackProcess) {
+          job.fallbackProcess.kill();
+        }
+        if (job.childSockets) {
+          for (const childSocket of job.childSockets) {
+            try { childSocket.destroy(); } catch (err) {}
+          }
+        }
+        cleanupJob(jobId, 1);
       }
-      cleanupJob(jobId, 1);
     }
   });
 });
@@ -474,27 +508,37 @@ function startJob(jobId, dummySocket, initData) {
   // Rewrite arguments
   const { rewrittenArgs, outputMode, originalOutputPath } = rewriteArgsForClients(originalArgs);
 
-  // Terminate any duplicate active transcode jobs targeting the same output directory
+  // Coalesce duplicate transcode requests targeting the same output directory
   if (originalOutputPath && originalOutputPath.toLowerCase().includes('.stf')) {
     const outputDir = path.dirname(originalOutputPath);
+    let existingJob = null;
     for (const [activeJobId, activeJob] of activeJobs.entries()) {
-      if (activeJob.originalOutputPath) {
+      if (activeJob.originalOutputPath && !activeJob.isCoalesced) {
         const activeOutputDir = path.dirname(activeJob.originalOutputPath);
         if (activeOutputDir.toLowerCase() === outputDir.toLowerCase()) {
-          // Only terminate older duplicate jobs if they have been running for at least 3 seconds
-          if (Date.now() - activeJob.startTime > 3000) {
-            logEvent(`Found duplicate job ${activeJobId} for output directory ${outputDir}. Terminating old job.`);
-            if (activeJob.wsClient) {
-              activeJob.wsClient.send(JSON.stringify({ type: 'stop_transcode', jobId: activeJobId }));
-            } else if (activeJob.fallbackProcess) {
-              activeJob.fallbackProcess.kill();
-            }
-            cleanupJob(activeJobId, 0);
-          } else {
-            logEvent(`Duplicate job ${activeJobId} detected for same folder, but it started recently (${Date.now() - activeJob.startTime}ms ago). Allowing concurrent execution.`);
-          }
+          existingJob = activeJob;
+          break;
         }
       }
+    }
+
+    if (existingJob) {
+      logEvent(`Found duplicate job request ${jobId} for directory ${outputDir}. Coalescing into existing job ${existingJob.id}.`);
+      const job = {
+        id: jobId,
+        dummySocket,
+        isCoalesced: true,
+        parentJobId: existingJob.id,
+        status: 'coalesced',
+        originalOutputPath
+      };
+      activeJobs.set(jobId, job);
+
+      if (!existingJob.childSockets) {
+        existingJob.childSockets = [];
+      }
+      existingJob.childSockets.push(dummySocket);
+      return; // Stop execution of new transcode
     }
   }
 
@@ -632,10 +676,20 @@ function runLocalFallback(jobId, args, cwd) {
 
   ffmpegProc.stdout.on('data', (data) => {
     sendPacketToDummy(job.dummySocket, PKT_STDOUT, data);
+    if (job.childSockets) {
+      for (const childSocket of job.childSockets) {
+        sendPacketToDummy(childSocket, PKT_STDOUT, data);
+      }
+    }
   });
 
   ffmpegProc.stderr.on('data', (data) => {
     sendPacketToDummy(job.dummySocket, PKT_STDERR, data);
+    if (job.childSockets) {
+      for (const childSocket of job.childSockets) {
+        sendPacketToDummy(childSocket, PKT_STDERR, data);
+      }
+    }
   });
 
   ffmpegProc.on('close', (code) => {
@@ -662,8 +716,17 @@ function handleJobEnd(jobId, exitCode) {
     const codeBuf = Buffer.alloc(4);
     codeBuf.writeInt32BE(cleanExitCode, 0);
     sendPacketToDummy(job.dummySocket, PKT_EXIT, codeBuf);
+
+    // Notify any coalesced child sockets as well!
+    if (job.childSockets) {
+      for (const childSocket of job.childSockets) {
+        if (childSocket && !childSocket.destroyed) {
+          sendPacketToDummy(childSocket, PKT_EXIT, codeBuf);
+        }
+      }
+    }
   } catch (err) {
-    logEvent(`Error sending exit packet to dummy for job ${jobId}: ${err.message}`);
+    logEvent(`Error sending exit packet for job ${jobId}: ${err.message}`);
   }
 
   cleanupJob(jobId, cleanExitCode);
@@ -704,6 +767,17 @@ function cleanupJob(jobId, exitCode) {
     try {
       job.dummySocket.destroy();
     } catch (err) {}
+  }
+
+  // Close and cleanup child sockets
+  if (job.childSockets) {
+    for (const childSocket of job.childSockets) {
+      if (childSocket && !childSocket.destroyed) {
+        try {
+          childSocket.destroy();
+        } catch (err) {}
+      }
+    }
   }
 
   activeJobs.delete(jobId);
