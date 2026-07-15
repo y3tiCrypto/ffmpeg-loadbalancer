@@ -543,6 +543,13 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     exit_code = proc.wait()
     log_event(f"FFmpeg process for job {job_id} exited with code {exit_code}")
 
+    # Always log stderr if exit_code is non-zero for debug logging
+    if exit_code != 0 and config.get("enableDebugLog", False):
+        log_event(f"--- FFmpeg stderr output for job {job_id} (Exit Code: {exit_code}, Stopping: {job.get('stopping', False)}) ---")
+        for line in job.get("stderr_lines", [])[-50:]:
+            log_event(f"[FFmpeg-stderr] {line.strip()}")
+        log_event("--- End of FFmpeg stderr ---")
+
     if exit_code != 0 and not job.get("stopping"):
         # Detect hardware encoding initialization failures
         is_hw_error = False
@@ -570,12 +577,6 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
             }
             run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=True)
             return
-
-        if config.get("enableDebugLog", False):
-            log_event(f"--- FFmpeg stderr output for job {job_id} (Failed) ---")
-            for line in job.get("stderr_lines", []):
-                log_event(f"[FFmpeg-stderr] {line}")
-            log_event("--- End of FFmpeg stderr ---")
 
     # Notify Server
     safe_send(json.dumps({"type": "exit", "jobId": job_id, "exitCode": exit_code}))
