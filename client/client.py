@@ -648,7 +648,7 @@ def start_websocket_client():
                 on_close=on_close,
                 on_error=on_error
             )
-            ws.run_forever(ping_interval=10, ping_timeout=5)
+            ws.run_forever(ping_interval=60, ping_timeout=30)
         except Exception as e:
             log_event(f"WebSocket running error: {e}")
             log_event(traceback.format_exc())
