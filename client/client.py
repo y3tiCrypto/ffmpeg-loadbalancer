@@ -221,8 +221,30 @@ def run_ffmpeg(job_id, args, output_mode, output_path, force_cpu=False):
     job = client_active_jobs.get(job_id)
     if not job: return
 
-    # Rewrite codecs based on config mode
+    # Apply threads configuration if set in config
     rewritten_args = list(args)
+    try:
+        threads_count = int(config.get("ffmpegThreads", 0))
+    except Exception:
+        threads_count = 0
+        
+    if threads_count > 0:
+        threads_replaced = False
+        for i in range(len(rewritten_args) - 1):
+            if rewritten_args[i] == "-threads":
+                rewritten_args[i+1] = str(threads_count)
+                threads_replaced = True
+                break
+        if not threads_replaced:
+            rewritten_args.insert(1, str(threads_count))
+            rewritten_args.insert(1, "-threads")
+            
+        # Add -filter_threads for multi-threaded HLS filter scaling
+        rewritten_args.insert(1, str(threads_count))
+        rewritten_args.insert(1, "-filter_threads")
+        log_event(f"Configured FFmpeg thread count to {threads_count} (threads and filter_threads)")
+
+    # Rewrite codecs based on config mode
     mode = "cpu" if force_cpu else config["transcoderMode"]
     
     # Fallback checking
